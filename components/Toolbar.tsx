@@ -18,7 +18,12 @@ import {
   MoveDiagonal,
   Circle,
   ArrowRight,
-  Scissors
+  Scissors,
+  Type,
+  Bold,
+  Italic,
+  CaseSensitive,
+  Plus
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -30,6 +35,11 @@ interface ToolbarProps {
   getCanvasData: () => string | undefined;
 }
 
+const FONTS = [
+  'Inter', 'Arial', 'Helvetica', 'Times New Roman', 'Courier New', 
+  'Verdana', 'Georgia', 'Garamond', 'Comic Sans MS', 'Trebuchet MS', 'Impact'
+];
+
 const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onClear, onApplyTexture, getCanvasData }) => {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -37,6 +47,9 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
   const [showSecondaryColorPicker, setShowSecondaryColorPicker] = useState(false);
   const [customReference, setCustomReference] = useState<string | null>(null);
   
+  // Text Tool Local State
+  const [textContent, setTextContent] = useState('Tesla');
+
   const [apiKey, setApiKey] = useState<string>('');
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [tempKey, setTempKey] = useState('');
@@ -104,7 +117,6 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
            return;
         }
         if (imagesLoaded === 2) {
-          // Use template's natural size for best results (1:1 typically)
           canvas.width = templateImg.naturalWidth || 1024;
           canvas.height = templateImg.naturalHeight || 1024;
           ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
@@ -154,6 +166,45 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleAddText = () => {
+    if (!textContent.trim()) return;
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Font construction
+    const fontString = `${state.isItalic ? 'italic' : ''} ${state.isBold ? 'bold' : ''} ${state.fontSize * 5}px "${state.fontFamily}"`;
+    ctx.font = fontString;
+    
+    // Measure
+    const metrics = ctx.measureText(textContent);
+    const padding = state.hasShadow ? state.shadowBlur * 2 + 10 : 0;
+    const width = Math.ceil(metrics.width) + padding * 2;
+    // Approximate height since measureText height support varies
+    const height = Math.ceil(state.fontSize * 5 * 1.5) + padding * 2; 
+
+    canvas.width = width;
+    canvas.height = height;
+
+    // Redo context after resize
+    ctx.font = fontString;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+    
+    if (state.hasShadow) {
+        ctx.shadowColor = state.shadowColor;
+        ctx.shadowBlur = state.shadowBlur;
+        ctx.shadowOffsetX = 2; // Default offset
+        ctx.shadowOffsetY = 2;
+    }
+
+    ctx.fillStyle = state.color;
+    ctx.fillText(textContent, width / 2, height / 2);
+
+    onApplyTexture(canvas.toDataURL());
   };
 
   const handleSaveKey = () => {
@@ -317,53 +368,164 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
           {/* Tool Selection */}
           <div>
             <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Tools</h3>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => onChange({ tool: ToolType.BRUSH })}
-                className={`p-3 rounded-lg flex flex-col items-center gap-2 transition-all border ${
+                className={`p-2 rounded-lg flex flex-col items-center gap-1 transition-all border ${
                   state.tool === ToolType.BRUSH 
                     ? 'bg-zinc-800 border-white/20 text-white shadow-lg' 
                     : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800 hover:text-white'
                 }`}
               >
-                <Brush className="w-5 h-5" />
+                <Brush className="w-4 h-4" />
                 <span className="text-[10px]">Brush</span>
               </button>
               <button
                 onClick={() => onChange({ tool: ToolType.ERASER })}
-                className={`p-3 rounded-lg flex flex-col items-center gap-2 transition-all border ${
+                className={`p-2 rounded-lg flex flex-col items-center gap-1 transition-all border ${
                   state.tool === ToolType.ERASER 
                     ? 'bg-zinc-800 border-white/20 text-white shadow-lg' 
                     : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800 hover:text-white'
                 }`}
               >
-                <Eraser className="w-5 h-5" />
+                <Eraser className="w-4 h-4" />
                 <span className="text-[10px]">Eraser</span>
               </button>
               <button
                 onClick={() => onChange({ tool: ToolType.GRADIENT })}
-                className={`p-3 rounded-lg flex flex-col items-center gap-2 transition-all border ${
+                className={`p-2 rounded-lg flex flex-col items-center gap-1 transition-all border ${
                   state.tool === ToolType.GRADIENT 
                     ? 'bg-zinc-800 border-white/20 text-white shadow-lg' 
                     : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800 hover:text-white'
                 }`}
               >
-                <MoveDiagonal className="w-5 h-5" />
+                <MoveDiagonal className="w-4 h-4" />
                 <span className="text-[10px]">Gradient</span>
               </button>
               <button
                 onClick={() => onChange({ tool: ToolType.TRANSFORM })}
-                className={`p-3 rounded-lg flex flex-col items-center gap-2 transition-all border ${
+                className={`p-2 rounded-lg flex flex-col items-center gap-1 transition-all border ${
                   state.tool === ToolType.TRANSFORM 
                     ? 'bg-zinc-800 border-white/20 text-white shadow-lg' 
                     : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800 hover:text-white'
                 }`}
               >
-                <Scissors className="w-5 h-5" />
+                <Scissors className="w-4 h-4" />
                 <span className="text-[10px]">Select</span>
+              </button>
+              <button
+                onClick={() => onChange({ tool: ToolType.TEXT })}
+                className={`p-2 rounded-lg flex flex-col items-center gap-1 transition-all border ${
+                  state.tool === ToolType.TEXT 
+                    ? 'bg-zinc-800 border-white/20 text-white shadow-lg' 
+                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                }`}
+              >
+                <Type className="w-4 h-4" />
+                <span className="text-[10px]">Text</span>
               </button>
             </div>
           </div>
+          
+          {/* --- Tool Specific Panels --- */}
+
+          {/* Text Tool Panel */}
+          {state.tool === ToolType.TEXT && (
+             <div className="space-y-4 animate-in slide-in-from-left-4">
+                <div className="space-y-2">
+                   <label className="text-xs font-semibold text-zinc-500 uppercase">Text Content</label>
+                   <textarea
+                     value={textContent}
+                     onChange={(e) => setTextContent(e.target.value)}
+                     className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                     rows={2}
+                   />
+                </div>
+                
+                <div className="space-y-2">
+                   <label className="text-xs font-semibold text-zinc-500 uppercase">Font Family</label>
+                   <select 
+                      value={state.fontFamily}
+                      onChange={(e) => onChange({ fontFamily: e.target.value })}
+                      className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-2 text-sm text-white outline-none"
+                   >
+                      {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
+                   </select>
+                </div>
+
+                <div className="flex gap-2">
+                    <button 
+                       onClick={() => onChange({ isBold: !state.isBold })}
+                       className={`flex-1 p-2 rounded border transition-colors ${state.isBold ? 'bg-zinc-700 border-zinc-500 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}
+                       title="Bold"
+                    >
+                       <Bold className="w-4 h-4 mx-auto" />
+                    </button>
+                    <button 
+                       onClick={() => onChange({ isItalic: !state.isItalic })}
+                       className={`flex-1 p-2 rounded border transition-colors ${state.isItalic ? 'bg-zinc-700 border-zinc-500 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}
+                       title="Italic"
+                    >
+                       <Italic className="w-4 h-4 mx-auto" />
+                    </button>
+                    <button 
+                       onClick={() => onChange({ hasShadow: !state.hasShadow })}
+                       className={`flex-1 p-2 rounded border transition-colors ${state.hasShadow ? 'bg-zinc-700 border-zinc-500 text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}
+                       title="Drop Shadow"
+                    >
+                       <CaseSensitive className="w-4 h-4 mx-auto" />
+                    </button>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Font Size</h3>
+                    <span className="text-xs text-zinc-400 font-mono">{state.fontSize}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="10"
+                    max="200"
+                    value={state.fontSize}
+                    onChange={(e) => onChange({ fontSize: parseInt(e.target.value) })}
+                    className="w-full accent-white h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer hover:bg-zinc-700"
+                  />
+                </div>
+
+                {state.hasShadow && (
+                  <div className="space-y-2 pt-2 border-t border-zinc-800">
+                     <div className="flex justify-between items-center text-xs text-zinc-500">
+                        <span>Shadow Blur</span>
+                        <span>{state.shadowBlur}px</span>
+                     </div>
+                     <input
+                        type="range"
+                        min="0"
+                        max="20"
+                        value={state.shadowBlur}
+                        onChange={(e) => onChange({ shadowBlur: parseInt(e.target.value) })}
+                        className="w-full accent-blue-500 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                     />
+                     <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs text-zinc-500">Color:</span>
+                        <input 
+                           type="color" 
+                           value={state.shadowColor} 
+                           onChange={(e) => onChange({ shadowColor: e.target.value })}
+                           className="bg-transparent w-6 h-6 rounded cursor-pointer"
+                        />
+                     </div>
+                  </div>
+                )}
+
+                <button 
+                   onClick={handleAddText}
+                   className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg flex items-center justify-center gap-2 font-medium shadow-lg shadow-blue-900/20 active:scale-95 transition-all"
+                >
+                   <Plus className="w-4 h-4" /> Add Text Layer
+                </button>
+             </div>
+          )}
 
           {/* Gradient Settings */}
           {state.tool === ToolType.GRADIENT && (

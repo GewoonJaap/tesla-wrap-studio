@@ -22,7 +22,8 @@ export enum ToolType {
   ERASER = 'ERASER',
   FILL = 'FILL',
   GRADIENT = 'GRADIENT',
-  TRANSFORM = 'TRANSFORM'
+  TRANSFORM = 'TRANSFORM',
+  TEXT = 'TEXT'
 }
 
 export interface DrawingState {
@@ -32,6 +33,14 @@ export interface DrawingState {
   brushSize: number;
   tool: ToolType;
   opacity: number;
+  // Text Tool State
+  fontFamily: string;
+  fontSize: number;
+  isBold: boolean;
+  isItalic: boolean;
+  hasShadow: boolean;
+  shadowColor: string;
+  shadowBlur: number;
 }
 
 export interface EditorHandle {

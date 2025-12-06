@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef } from 'react';
 import { CarModel, DrawingState, Point, ToolType, Layer, EditorHandle } from '../types';
 import { GITHUB_BASE_URL } from '../constants';
-import { Loader2, Eye, EyeOff, Move, Check, X as XIcon, RotateCw, GripHorizontal } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Move, Check, X as XIcon, RotateCw, GripHorizontal, FlipHorizontal, FlipVertical } from 'lucide-react';
 import LayerPanel from './LayerPanel';
 
 interface EditorProps {
@@ -56,6 +56,9 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
   // Texture Alignment State
   const [pendingTexture, setPendingTexture] = useState<string | null>(null);
   const [transform, setTransform] = useState<TransformState>({ x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
+  
+  // Restore State for cancellation
+  const [restoreState, setRestoreState] = useState<{ x: number, y: number, layerId: string } | null>(null);
 
   // Interactive Transform State
   const [isTransforming, setIsTransforming] = useState(false);
@@ -196,9 +199,10 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
 
   useEffect(() => {
     if (textureToApply && isTemplateLoaded) {
-      const newId = addLayer("AI Texture");
+      const newId = addLayer("New Layer");
       setPendingTexture(textureToApply);
       setTransform({ x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
+      setRestoreState(null); 
       onTextureApplied(); 
     }
   }, [textureToApply, isTemplateLoaded, onTextureApplied]);
@@ -259,14 +263,31 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
       ctx.restore();
       ctx.globalCompositeOperation = prevComposite;
       setPendingTexture(null);
+      setRestoreState(null);
     };
   };
 
   const cancelPendingTexture = () => {
-    setPendingTexture(null);
-    if (activeLayerId && layers.find(l => l.id === activeLayerId)?.name === "AI Texture") {
+    if (restoreState && pendingTexture) {
+         // Restore content to original location
+         const canvas = layerCanvasRefs.current.get(restoreState.layerId);
+         const ctx = canvas?.getContext('2d');
+         if (canvas && ctx) {
+             const img = new Image();
+             img.onload = () => {
+                 const prevComposite = ctx.globalCompositeOperation;
+                 ctx.globalCompositeOperation = 'source-over';
+                 ctx.drawImage(img, restoreState.x, restoreState.y);
+                 ctx.globalCompositeOperation = prevComposite;
+             };
+             img.src = pendingTexture;
+         }
+    } else if (activeLayerId && layers.find(l => l.id === activeLayerId)?.name === "New Layer") {
+        // Only remove layer if it was auto-created 
         removeLayer(activeLayerId);
     }
+    setPendingTexture(null);
+    setRestoreState(null);
   };
 
   // --- Interactive Gizmo Logic ---
@@ -502,6 +523,13 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
                     
                     // 4. Set pending texture
                     setPendingTexture(tempCanvas.toDataURL());
+                    
+                    // SAVE RESTORE STATE FOR CANCEL
+                    setRestoreState({
+                        x, 
+                        y, 
+                        layerId: activeLayerId
+                    });
 
                     // 5. Calculate offset and SCALE to place it exactly
                     const canvasCenterX = canvas.width / 2;
@@ -619,6 +647,54 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
                                 <span className="text-zinc-400 font-mono">{transform.rotation}°</span>
                              </div>
                              <input type="range" min="-180" max="180" value={transform.rotation} onChange={e => setTransform(p => ({...p, rotation: Number(e.target.value)}))} className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-ew-resize accent-orange-500"/>
+                        </div>
+
+                        {/* Scale Sliders */}
+                        <div className="space-y-3 pt-2 border-t border-zinc-800">
+                             <div className="flex justify-between text-[10px] uppercase text-zinc-500 font-semibold"><span>Scale</span></div>
+                             <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <span className="text-xs text-zinc-400 block mb-1">W</span>
+                                    <input 
+                                        type="range" step="0.01" min="0.5" max="2" 
+                                        value={Math.abs(transform.scaleX)} 
+                                        onChange={e => setTransform(p => ({...p, scaleX: Number(e.target.value) * (p.scaleX < 0 ? -1 : 1)}))} 
+                                        className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-ew-resize accent-blue-500"
+                                    />
+                                </div>
+                                <div>
+                                    <span className="text-xs text-zinc-400 block mb-1">H</span>
+                                    <input 
+                                        type="range" step="0.01" min="0.5" max="2" 
+                                        value={Math.abs(transform.scaleY)} 
+                                        onChange={e => setTransform(p => ({...p, scaleY: Number(e.target.value) * (p.scaleY < 0 ? -1 : 1)}))} 
+                                        className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-ns-resize accent-blue-500"
+                                    />
+                                </div>
+                             </div>
+                        </div>
+
+                        {/* Mirror Buttons */}
+                        <div className="space-y-3 pt-2 border-t border-zinc-800">
+                             <div className="flex justify-between text-[10px] uppercase text-zinc-500 font-semibold">
+                                <span>Mirror</span>
+                             </div>
+                             <div className="flex gap-2">
+                                <button 
+                                    onClick={() => setTransform(p => ({ ...p, scaleX: p.scaleX * -1 }))}
+                                    className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-2 transition-colors ${transform.scaleX < 0 ? 'bg-purple-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'}`}
+                                    title="Flip Horizontal"
+                                >
+                                    <FlipHorizontal className="w-4 h-4" /> Horizontal
+                                </button>
+                                <button 
+                                    onClick={() => setTransform(p => ({ ...p, scaleY: p.scaleY * -1 }))}
+                                    className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-2 transition-colors ${transform.scaleY < 0 ? 'bg-purple-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'}`}
+                                    title="Flip Vertical"
+                                >
+                                    <FlipVertical className="w-4 h-4" /> Vertical
+                                </button>
+                             </div>
                         </div>
                     </div>
                 </div>
