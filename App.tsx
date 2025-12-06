@@ -17,39 +17,35 @@ const App: React.FC = () => {
   });
   const [textureToApply, setTextureToApply] = useState<string | null>(null);
 
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // Function ref to get data from Editor (since we now have multiple layers)
+  const getCompositeDataRef = useRef<() => string | undefined>(() => undefined);
 
   const handleStateChange = (updates: Partial<DrawingState>) => {
     setDrawingState(prev => ({ ...prev, ...updates }));
   };
 
   const handleClearCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    // Clear to white
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+     // A full clear is now a reload to reset the complexity of layers
+     if (window.confirm("This will reset all layers and clear the workspace. Continue?")) {
+         window.location.reload(); 
+     }
   }, []);
 
   const handleDownload = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const dataUrl = getCompositeDataRef.current();
+    if (!dataUrl) {
+        alert("Canvas not ready");
+        return;
+    }
     
     // Create a temporary link
     const link = document.createElement('a');
     link.download = `tesla-wrap-${selectedModel.id}-${Date.now()}.png`;
-    link.href = canvas.toDataURL('image/png');
+    link.href = dataUrl;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   }, [selectedModel]);
-
-  const handleCanvasRef = (canvas: HTMLCanvasElement | null) => {
-    canvasRef.current = canvas;
-  };
 
   const handleApplyTexture = (texture: string) => {
     setTextureToApply(texture);
@@ -59,8 +55,9 @@ const App: React.FC = () => {
     setTextureToApply(null);
   };
 
+  // Wrapper for Toolbar to get data (passed to AI for context)
   const getCanvasData = useCallback((): string | undefined => {
-    return canvasRef.current?.toDataURL('image/png');
+    return getCompositeDataRef.current();
   }, []);
 
   return (
@@ -84,9 +81,9 @@ const App: React.FC = () => {
         <Editor 
           model={selectedModel}
           drawingState={drawingState}
-          onCanvasRef={handleCanvasRef}
           textureToApply={textureToApply}
           onTextureApplied={handleTextureApplied}
+          onCompositeRequest={(fn) => { getCompositeDataRef.current = fn; }}
         />
       </main>
     </div>

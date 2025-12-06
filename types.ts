@@ -10,6 +10,13 @@ export interface Point {
   y: number;
 }
 
+export interface Layer {
+  id: string;
+  name: string;
+  visible: boolean;
+  opacity: number;
+}
+
 export enum ToolType {
   BRUSH = 'BRUSH',
   ERASER = 'ERASER',
