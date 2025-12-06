@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { CarModel, DrawingState, Point, ToolType, Layer } from '../types';
 import { GITHUB_BASE_URL } from '../constants';
-import { Loader2, Eye, EyeOff, AlertCircle, Move, Check, X as XIcon, Maximize, ArrowLeftRight, ArrowUpDown } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Move, Check, X as XIcon, Maximize, ArrowLeftRight, ArrowUpDown } from 'lucide-react';
 import LayerPanel from './LayerPanel';
 
 interface EditorProps {
@@ -181,7 +181,7 @@ const Editor: React.FC<EditorProps> = ({
 
 
   // Helper: Init a specific layer canvas
-  const initLayerCanvas = (canvas: HTMLCanvasElement) => {
+  const initLayerCanvas = (canvas: HTMLCanvasElement, isBackground: boolean) => {
     if (!templateImgRef.current) return;
     
     // Only resize if needed to avoid clearing content
@@ -189,15 +189,13 @@ const Editor: React.FC<EditorProps> = ({
         canvas.width = templateImgRef.current.naturalWidth;
         canvas.height = templateImgRef.current.naturalHeight;
         
-        // If it's the very first layer (background), fill white
-        // We can identify if it's the bottom layer (index 0) if we want strict behavior,
-        // but typically "Background" layer in array index 0.
-        // For now, let's just ensure clean slate
-        // const ctx = canvas.getContext('2d');
-        // if (ctx && layers[0] && canvas === layerCanvasRefs.current.get(layers[0].id)) {
-        //     ctx.fillStyle = '#FFFFFF';
-        //     ctx.fillRect(0, 0, canvas.width, canvas.height);
-        // }
+        if (isBackground) {
+             const ctx = canvas.getContext('2d');
+             if (ctx) {
+                 ctx.fillStyle = '#FFFFFF';
+                 ctx.fillRect(0, 0, canvas.width, canvas.height);
+             }
+        }
     }
   };
 
@@ -481,11 +479,31 @@ const Editor: React.FC<EditorProps> = ({
                 style={{ 
                 maxWidth: '100%', 
                 maxHeight: '100%',
-                aspectRatio: templateImgRef.current ? `${templateImgRef.current.naturalWidth}/${templateImgRef.current.naturalHeight}` : 'auto',
+                // aspectRatio Removed as the Ghost Image now dictates size
                 cursor: drawingState.tool === ToolType.GRADIENT ? 'crosshair' : 'default'
                 }}
             >
-                {/* Background Fill (to ensure composite export has white bg if bottom layer is transparent) */}
+                {/* 
+                  RENDER STACK:
+                  0. Ghost Image (Relative, Invisible) - Forces container size
+                  1. White Base (Absolute)
+                  2. Layers (Absolute)
+                  3. Pending Texture (Absolute)
+                  4. Template Overlay (Absolute)
+                  5. SVG Overlay (Absolute)
+                */}
+                
+                {/* Ghost Image to prop open the container */}
+                {isTemplateLoaded && (
+                    <img 
+                        src={templateUrl} 
+                        alt=""
+                        className="invisible relative pointer-events-none select-none z-[-1]" 
+                        aria-hidden="true"
+                    />
+                )}
+
+                {/* Background Fill (Visible white background behind layers) */}
                 <div className="absolute inset-0 bg-white" />
 
                 {/* Dynamic Layers */}
@@ -495,7 +513,7 @@ const Editor: React.FC<EditorProps> = ({
                         ref={(el) => {
                             if (el) {
                                 layerCanvasRefs.current.set(layer.id, el);
-                                initLayerCanvas(el);
+                                initLayerCanvas(el, layer.name === 'Background');
                             } else {
                                 layerCanvasRefs.current.delete(layer.id);
                             }
