@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { CarModel } from '../types';
 import { CAR_MODELS } from '../constants';
-import { Car, ChevronDown, Download, HelpCircle, X } from 'lucide-react';
+import { Car, ChevronDown, Download, HelpCircle, X, Coffee } from 'lucide-react';
 
 interface HeaderProps {
   selectedModel: CarModel;
@@ -73,6 +73,16 @@ const Header: React.FC<HeaderProps> = ({ selectedModel, onSelectModel, onDownloa
           >
             <HelpCircle className="w-5 h-5" />
           </button>
+
+          <a
+            href="https://buymeacoffee.com/mrproper"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 bg-[#FFDD00] text-black px-3 py-2 sm:px-4 sm:py-2 rounded-full hover:bg-[#FFDD00]/90 transition-all font-medium text-sm shadow-lg shadow-yellow-500/10 active:scale-95"
+          >
+            <Coffee className="w-4 h-4" />
+            <span className="hidden sm:inline">Buy me a coffee</span>
+          </a>
 
           <button
             onClick={onDownload}
