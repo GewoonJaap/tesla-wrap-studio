@@ -27,9 +27,27 @@ export const generateTexture = async (prompt: string, apiKey: string, referenceI
       }
     }
 
-    // Add text prompt
+    // Enhanced prompt logic to support style replacement/transfer
+    let textPrompt;
+    if (referenceImage) {
+      textPrompt = `You are a professional vehicle wrap designer.
+      
+      INPUT: The attached image is the current texture on the car.
+      TASK: Generate a NEW texture that replaces the input texture.
+      INSTRUCTION: Keep the general layout or composition of the input if useful, but completely transform the visual style, materials, and colors to match the User's Prompt.
+      
+      USER PROMPT: "${prompt}"
+      
+      OUTPUT: A high-resolution, seamless square texture pattern suitable for a vehicle wrap.`;
+    } else {
+      textPrompt = `Generate a seamless texture pattern suitable for a car wrap.
+      View: Top-down.
+      Quality: High.
+      Style: "${prompt}"`;
+    }
+
     parts.push({
-      text: `Seamless texture pattern, top down view, high quality, suitable for car wrap. Style: ${prompt}`,
+      text: textPrompt,
     });
 
     const response = await ai.models.generateContent({
