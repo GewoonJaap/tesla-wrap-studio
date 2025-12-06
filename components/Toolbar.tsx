@@ -21,9 +21,10 @@ interface ToolbarProps {
   onChange: (updates: Partial<DrawingState>) => void;
   onClear: () => void;
   onApplyTexture: (base64Texture: string) => void;
+  getCanvasData: () => string | undefined;
 }
 
-const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onClear, onApplyTexture }) => {
+const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onClear, onApplyTexture, getCanvasData }) => {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -50,7 +51,9 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
 
     setIsGenerating(true);
     try {
-      const textureUrl = await generateTexture(prompt, apiKey);
+      // Get current canvas state to use as reference
+      const canvasData = getCanvasData();
+      const textureUrl = await generateTexture(prompt, apiKey, canvasData);
       onApplyTexture(textureUrl);
     } catch (e) {
       console.error(e);

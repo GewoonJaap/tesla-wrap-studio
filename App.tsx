@@ -57,6 +57,10 @@ const App: React.FC = () => {
     setTextureToApply(null);
   };
 
+  const getCanvasData = useCallback((): string | undefined => {
+    return canvasRef.current?.toDataURL('image/png');
+  }, []);
+
   return (
     <div className="h-full flex flex-col bg-zinc-950 text-white">
       <Header 
@@ -72,6 +76,7 @@ const App: React.FC = () => {
           onChange={handleStateChange}
           onClear={handleClearCanvas}
           onApplyTexture={handleApplyTexture}
+          getCanvasData={getCanvasData}
         />
         
         <Editor 
