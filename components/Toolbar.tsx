@@ -10,9 +10,6 @@ import {
   Palette,
   Loader2,
   Image as ImageIcon,
-  Key,
-  X,
-  ExternalLink,
   Upload,
   Trash2,
   MoveDiagonal,
@@ -23,7 +20,8 @@ import {
   Bold,
   Italic,
   CaseSensitive,
-  Plus
+  Plus,
+  Key
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -47,23 +45,20 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
   const [showSecondaryColorPicker, setShowSecondaryColorPicker] = useState(false);
   const [customReference, setCustomReference] = useState<string | null>(null);
   
+  // API Key State
+  const [apiKey, setApiKey] = useState('');
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  
   // Text Tool Local State
   const [textContent, setTextContent] = useState('Tesla');
-
-  const [apiKey, setApiKey] = useState<string>('');
-  const [showKeyModal, setShowKeyModal] = useState(false);
-  const [tempKey, setTempKey] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const storedKey = localStorage.getItem('gemini_api_key');
-    if (storedKey) {
-      setApiKey(storedKey);
-    }
-  }, []);
+    // Load API Key from local storage
+    const savedKey = localStorage.getItem('gemini_api_key');
+    if (savedKey) setApiKey(savedKey);
 
-  useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
       if (!items) return;
@@ -89,6 +84,11 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
   }, []);
+
+  const handleSaveApiKey = (value: string) => {
+    setApiKey(value);
+    localStorage.setItem('gemini_api_key', value);
+  };
 
   const getCompositeReference = async (): Promise<string | undefined> => {
     if (customReference) return customReference;
@@ -148,21 +148,21 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
+
     if (!apiKey) {
-      setShowKeyModal(true);
+      setShowApiKeyInput(true);
+      alert("Please enter your Google Gemini API Key to generate textures.");
       return;
     }
+
     setIsGenerating(true);
     try {
       const referenceData = await getCompositeReference();
-      const textureUrl = await generateTexture(prompt, apiKey, referenceData);
+      const textureUrl = await generateTexture(prompt, referenceData, apiKey);
       onApplyTexture(textureUrl);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert('Failed to generate texture. Please check your API key and try again.');
-      if ((e as any).toString().includes('400') || (e as any).toString().includes('403')) {
-        setShowKeyModal(true);
-      }
+      alert(`Failed to generate texture: ${e.message}`);
     } finally {
       setIsGenerating(false);
     }
@@ -205,15 +205,6 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
     ctx.fillText(textContent, width / 2, height / 2);
 
     onApplyTexture(canvas.toDataURL());
-  };
-
-  const handleSaveKey = () => {
-    if (tempKey.trim()) {
-      localStorage.setItem('gemini_api_key', tempKey.trim());
-      setApiKey(tempKey.trim());
-      setShowKeyModal(false);
-      setTempKey('');
-    }
   };
 
   const handleApplyExample = (filename: string) => {
@@ -261,16 +252,31 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
               <h2 className="text-sm font-bold text-zinc-100 uppercase tracking-wider">AI Texture Gen</h2>
             </div>
             <button 
-              onClick={() => {
-                setTempKey(apiKey);
-                setShowKeyModal(true);
-              }}
-              className="text-zinc-500 hover:text-white transition-colors p-1 rounded-md hover:bg-zinc-800"
-              title="Manage API Key"
+                onClick={() => setShowApiKeyInput(!showApiKeyInput)}
+                className={`p-1.5 rounded-lg transition-colors ${apiKey ? 'text-green-400 bg-green-400/10' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}`}
+                title="Configure API Key"
             >
-              <Key className="w-4 h-4" />
+                <Key className="w-4 h-4" />
             </button>
           </div>
+
+          {showApiKeyInput && (
+            <div className="mb-4 bg-zinc-950/50 p-3 rounded-lg border border-zinc-800 animate-in slide-in-from-top-2">
+                <label className="text-xs text-zinc-400 block mb-1.5">Gemini API Key</label>
+                <div className="flex gap-2">
+                    <input 
+                        type="password"
+                        value={apiKey}
+                        onChange={(e) => handleSaveApiKey(e.target.value)}
+                        placeholder="Enter AI Studio Key..."
+                        className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:border-purple-500 outline-none"
+                    />
+                </div>
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-[10px] text-purple-400 hover:underline mt-1.5 inline-block">
+                    Get an API key
+                </a>
+            </div>
+          )}
           
           <div className="space-y-3">
             <div 
@@ -713,62 +719,6 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
           </button>
         </div>
       </aside>
-
-      {/* API Key Modal */}
-      {showKeyModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
-            <div className="p-5 border-b border-zinc-800 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <Key className="w-5 h-5 text-purple-500" />
-                Enter Gemini API Key
-              </h2>
-              <button 
-                onClick={() => setShowKeyModal(false)}
-                className="text-zinc-500 hover:text-white transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              <p className="text-zinc-400 text-sm">
-                To generate AI textures, you need an API key from Google AI Studio. The key is stored locally on your device.
-              </p>
-              
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-zinc-300 uppercase">API Key</label>
-                <input 
-                  type="password" 
-                  value={tempKey}
-                  onChange={(e) => setTempKey(e.target.value)}
-                  placeholder="AIzaSy..."
-                  className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 outline-none transition-all font-mono text-sm"
-                />
-              </div>
-
-              <a 
-                href="https://aistudio.google.com/app/apikey" 
-                target="_blank" 
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 transition-colors"
-              >
-                Get an API key here <ExternalLink className="w-3 h-3" />
-              </a>
-
-              <div className="pt-2">
-                <button
-                  onClick={handleSaveKey}
-                  disabled={!tempKey.trim()}
-                  className="w-full bg-white text-black hover:bg-zinc-200 disabled:opacity-50 disabled:hover:bg-white font-medium py-2.5 rounded-lg transition-all"
-                >
-                  Save API Key
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 };

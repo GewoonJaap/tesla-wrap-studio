@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef } from 'react';
 import Header from './components/Header';
 import Toolbar from './components/Toolbar';
 import Editor from './components/Editor';
+import ThreeDViewer from './components/ThreeDViewer';
 import { CAR_MODELS } from './constants';
 import { CarModel, DrawingState, ToolType, EditorHandle } from './types';
 
@@ -14,8 +15,19 @@ const App: React.FC = () => {
     brushSize: 10,
     tool: ToolType.BRUSH,
     opacity: 1,
+    fontFamily: 'Inter',
+    fontSize: 40,
+    isBold: false,
+    isItalic: false,
+    hasShadow: false,
+    shadowColor: '#000000',
+    shadowBlur: 5
   });
   const [textureToApply, setTextureToApply] = useState<string | null>(null);
+  
+  // 3D Preview State
+  const [show3D, setShow3D] = useState(false);
+  const [previewTexture, setPreviewTexture] = useState<string | null>(null);
 
   // Ref to access editor methods
   const editorRef = useRef<EditorHandle>(null);
@@ -46,6 +58,16 @@ const App: React.FC = () => {
     document.body.removeChild(link);
   }, [selectedModel]);
 
+  const handleOpen3D = useCallback(() => {
+    const dataUrl = editorRef.current?.getCompositeData();
+    if (dataUrl) {
+        setPreviewTexture(dataUrl);
+        setShow3D(true);
+    } else {
+        alert("Canvas is not ready yet.");
+    }
+  }, []);
+
   const handleApplyTexture = (texture: string) => {
     setTextureToApply(texture);
   };
@@ -56,7 +78,6 @@ const App: React.FC = () => {
 
   // Wrapper for Toolbar to get data (passed to AI for context)
   const getCanvasData = useCallback((): string | undefined => {
-    // Use the ref directly instead of a separate callback ref
     return editorRef.current?.getCompositeData();
   }, []);
 
@@ -66,6 +87,7 @@ const App: React.FC = () => {
         selectedModel={selectedModel} 
         onSelectModel={setSelectedModel}
         onDownload={handleDownload}
+        onOpen3D={handleOpen3D}
       />
       
       <main className="flex-1 flex overflow-hidden">
@@ -86,6 +108,15 @@ const App: React.FC = () => {
           onTextureApplied={handleTextureApplied}
         />
       </main>
+
+      {/* 3D Modal Overlay */}
+      {show3D && (
+        <ThreeDViewer 
+            model={selectedModel}
+            textureData={previewTexture}
+            onClose={() => setShow3D(false)}
+        />
+      )}
     </div>
   );
 };

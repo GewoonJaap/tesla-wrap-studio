@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { CarModel } from '../types';
 import { CAR_MODELS } from '../constants';
-import { Car, ChevronDown, Download, HelpCircle, X, Coffee } from 'lucide-react';
+import { Car, ChevronDown, Download, HelpCircle, X, Coffee, Box } from 'lucide-react';
 
 interface HeaderProps {
   selectedModel: CarModel;
   onSelectModel: (model: CarModel) => void;
   onDownload: () => void;
+  onOpen3D: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ selectedModel, onSelectModel, onDownload }) => {
+const Header: React.FC<HeaderProps> = ({ selectedModel, onSelectModel, onDownload, onOpen3D }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
 
@@ -83,6 +84,14 @@ const Header: React.FC<HeaderProps> = ({ selectedModel, onSelectModel, onDownloa
             <Coffee className="w-4 h-4" />
             <span className="hidden sm:inline">Buy me a coffee</span>
           </a>
+
+          <button
+            onClick={onOpen3D}
+            className="flex items-center gap-2 bg-zinc-800 text-white border border-zinc-600 px-4 py-2 rounded-full hover:bg-zinc-700 transition-all font-medium text-sm shadow-lg active:scale-95"
+          >
+            <Box className="w-4 h-4" />
+            <span className="hidden sm:inline">3D Preview</span>
+          </button>
 
           <button
             onClick={onDownload}

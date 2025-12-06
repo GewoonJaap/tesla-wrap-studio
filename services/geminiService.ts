@@ -1,8 +1,11 @@
 import { GoogleGenAI } from "@google/genai";
 
-export const generateTexture = async (prompt: string, apiKey: string, referenceImage?: string): Promise<string> => {
+export const generateTexture = async (prompt: string, referenceImage?: string, userApiKey?: string): Promise<string> => {
+  // Prioritize user-provided key, fallback to env var (if available)
+  const apiKey = userApiKey || (typeof process !== 'undefined' ? process.env.API_KEY : undefined);
+
   if (!apiKey) {
-    throw new Error("API Key is missing.");
+    throw new Error("API Key is missing. Please enter your Gemini API Key in the settings.");
   }
 
   const ai = new GoogleGenAI({ apiKey });
