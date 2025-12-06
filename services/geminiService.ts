@@ -27,24 +27,30 @@ export const generateTexture = async (prompt: string, apiKey: string, referenceI
       }
     }
 
-    // Enhanced prompt logic to support style replacement/transfer
+    // Enhanced prompt logic to support UV mapping / template filling
     let textPrompt;
     if (referenceImage) {
       textPrompt = `You are a professional vehicle wrap designer.
       
-      INPUT: The attached image is the current texture on the car.
-      TASK: Generate a NEW texture that replaces the input texture.
-      INSTRUCTION: Keep the general layout or composition of the input if useful, but completely transform the visual style, materials, and colors to match the User's Prompt.
+      INPUT IMAGE: A UV template or existing wrap design for a Tesla.
+      TASK: Apply the design concept "${prompt}" to this specific car layout.
       
-      USER PROMPT: "${prompt}"
+      CRITICAL INSTRUCTIONS:
+      1. STRICT ALIGNMENT: The input image defines the exact shape of the car panels. You must maintain these shapes and positions perfectly.
+      2. FILL PANELS: Apply the requested texture/graphic ONLY inside the panel boundaries.
+      3. PRESERVE LAYOUT: Do not distort the wireframe or panel outlines. The result must overlay the original template perfectly.
+      4. STYLE: "${prompt}".
       
-      OUTPUT: A high-resolution, seamless square texture pattern suitable for a vehicle wrap.`;
+      OUTPUT: A high-resolution image matching the input dimensions and UV layout.`;
     } else {
+      // Fallback if no reference for some reason (though app should always provide composite)
       textPrompt = `Generate a seamless texture pattern suitable for a car wrap.
       View: Top-down.
       Quality: High.
       Style: "${prompt}"`;
     }
+
+    console.log("Generating with prompt:", textPrompt);
 
     parts.push({
       text: textPrompt,

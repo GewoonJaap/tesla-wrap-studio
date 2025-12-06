@@ -74,6 +74,82 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
     return () => window.removeEventListener('paste', handlePaste);
   }, []);
 
+  /**
+   * Helper to create a composite image of the current canvas + the template wireframe.
+   * This ensures the AI receives the structural context (UV Map) to align the texture correctly.
+   */
+  const getCompositeReference = async (): Promise<string | undefined> => {
+    // 1. If custom reference exists, use it directly (user wants style transfer on their image)
+    if (customReference) return customReference;
+
+    // 2. Otherwise, create composite: Canvas Drawing + Template Overlay
+    const canvasData = getCanvasData();
+    const templateUrl = `${GITHUB_BASE_URL}/${selectedModel.folderName}/template.png`;
+
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(canvasData); // Fallback
+        return;
+      }
+
+      const bgImg = new Image();
+      const templateImg = new Image();
+      
+      // Handle CORS for the template image
+      bgImg.crossOrigin = "anonymous";
+      templateImg.crossOrigin = "anonymous";
+
+      let imagesLoaded = 0;
+      let hasError = false;
+
+      const checkDone = () => {
+        if (hasError) {
+           resolve(canvasData);
+           return;
+        }
+        if (imagesLoaded === 2) {
+          // Both images loaded
+          // Use natural dimensions of template or default to 1024
+          canvas.width = templateImg.naturalWidth || 1024;
+          canvas.height = templateImg.naturalHeight || 1024;
+
+          // 1. Draw the user's drawing (background)
+          ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+          
+          // 2. Draw the template (wireframe) on top
+          ctx.drawImage(templateImg, 0, 0, canvas.width, canvas.height);
+
+          resolve(canvas.toDataURL('image/png'));
+        }
+      };
+
+      const onError = (e: any) => {
+        console.error("Error loading composite images", e);
+        hasError = true;
+        checkDone();
+      };
+
+      const onLoad = () => {
+        imagesLoaded++;
+        checkDone();
+      };
+
+      bgImg.onload = onLoad;
+      bgImg.onerror = onError;
+      
+      templateImg.onload = onLoad;
+      templateImg.onerror = onError;
+
+      // Load images
+      // If canvasData is empty/undefined, use a 1x1 white pixel to ensure we have a background
+      bgImg.src = canvasData || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAANSURBVBhXY2BgYAAAAAQAAVzN/2kAAAAASUVORK5CYII=';
+      // Append time to avoid cache issues if needed, though usually not needed for raw github
+      templateImg.src = templateUrl;
+    });
+  };
+
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
 
@@ -84,8 +160,8 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
 
     setIsGenerating(true);
     try {
-      // Prioritize custom uploaded reference, fallback to current canvas state
-      const referenceData = customReference || getCanvasData();
+      // Get the best reference image we can (Composite or Custom)
+      const referenceData = await getCompositeReference();
       const textureUrl = await generateTexture(prompt, apiKey, referenceData);
       onApplyTexture(textureUrl);
     } catch (e) {

@@ -111,7 +111,7 @@ const Header: React.FC<HeaderProps> = ({ selectedModel, onSelectModel, onDownloa
               </button>
             </div>
             
-            <div className="p-6 overflow-y-auto space-y-6 text-zinc-300 text-sm leading-relaxed">
+            <div className="p-6 overflow-y-auto space-y-6 text-zinc-300 text-sm leading-relaxed scrollbar-thin">
               <section className="space-y-3">
                 <h3 className="text-white font-semibold text-base">1. Create Your Design</h3>
                 <p>Use the tools on the left to draw or generate AI textures. You can also select from the inspiration gallery. The template wireframe helps you see where the wrap will apply on the car.</p>
@@ -135,6 +135,24 @@ const Header: React.FC<HeaderProps> = ({ selectedModel, onSelectModel, onDownloa
               <section className="space-y-3">
                 <h3 className="text-white font-semibold text-base">4. Apply in Vehicle</h3>
                 <p>Plug the USB drive into your Tesla. Go to <strong className="text-white">Toybox &rarr; Paint Shop &rarr; Wraps</strong> to select and apply your custom design.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Cybertruck Interface</span>
+                    <img 
+                      src="https://github.com/GewoonJaap/custom-tesla-wraps/raw/master/images/paint-shop-wraps-ct.png" 
+                      alt="Cybertruck Paint Shop Interface" 
+                      className="w-full rounded-lg border border-zinc-800"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Model 3/Y Interface</span>
+                    <img 
+                      src="https://github.com/GewoonJaap/custom-tesla-wraps/raw/master/images/paint-shop-wraps-m3.png" 
+                      alt="Model 3/Y Paint Shop Interface" 
+                      className="w-full rounded-lg border border-zinc-800"
+                    />
+                  </div>
+                </div>
               </section>
 
               <div className="bg-zinc-950/50 p-4 rounded-lg border border-zinc-800 text-xs">
