@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { CarModel, DrawingState, Point, ToolType, Layer } from '../types';
 import { GITHUB_BASE_URL } from '../constants';
-import { Loader2, Eye, EyeOff, Move, Check, X as XIcon, Maximize, ArrowLeftRight, ArrowUpDown } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Move, Check, X as XIcon, Maximize, ArrowLeftRight, ArrowUpDown, RotateCw, GripHorizontal } from 'lucide-react';
 import LayerPanel from './LayerPanel';
 
 interface EditorProps {
@@ -17,6 +17,7 @@ interface TransformState {
   y: number;
   scaleX: number;
   scaleY: number;
+  rotation: number;
 }
 
 const Editor: React.FC<EditorProps> = ({ 
@@ -53,7 +54,13 @@ const Editor: React.FC<EditorProps> = ({
 
   // Texture Alignment State
   const [pendingTexture, setPendingTexture] = useState<string | null>(null);
-  const [transform, setTransform] = useState<TransformState>({ x: 0, y: 0, scaleX: 1, scaleY: 1 });
+  const [transform, setTransform] = useState<TransformState>({ x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
+
+  // Interactive Transform State
+  const [isTransforming, setIsTransforming] = useState(false);
+  const [transformStart, setTransformStart] = useState<{ x: number, y: number } | null>(null);
+  const [initialTransform, setInitialTransform] = useState<TransformState | null>(null);
+  const [activeHandle, setActiveHandle] = useState<string | null>(null);
 
   // Construct URLs
   const templateUrl = `${GITHUB_BASE_URL}/${model.folderName}/template.png`;
@@ -143,7 +150,7 @@ const Editor: React.FC<EditorProps> = ({
       
       // 2. Set as pending for alignment
       setPendingTexture(textureToApply);
-      setTransform({ x: 0, y: 0, scaleX: 1, scaleY: 1 });
+      setTransform({ x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
       
       // 3. Clear parent signal
       onTextureApplied(); 
@@ -203,8 +210,7 @@ const Editor: React.FC<EditorProps> = ({
     }
   };
 
-
-  // --- Logic ---
+  // --- Transform Logic ---
 
   const applyPendingTexture = () => {
     // Apply to the ACTIVE layer (which we just created)
@@ -224,8 +230,8 @@ const Editor: React.FC<EditorProps> = ({
       const ratioX = canvas.width / rect.width;
       const ratioY = canvas.height / rect.height;
 
-      const finalW = canvas.width * transform.scaleX;
-      const finalH = canvas.height * transform.scaleY;
+      const finalW = canvas.width; // Base width matches canvas for high res
+      const finalH = canvas.height;
       
       const shiftX = transform.x * ratioX;
       const shiftY = transform.y * ratioY;
@@ -233,12 +239,17 @@ const Editor: React.FC<EditorProps> = ({
       const centerX = (canvas.width / 2) + shiftX;
       const centerY = (canvas.height / 2) + shiftY;
 
-      const left = centerX - (finalW / 2);
-      const top = centerY - (finalH / 2);
-
       const prevComposite = ctx.globalCompositeOperation;
       ctx.globalCompositeOperation = 'source-over';
-      ctx.drawImage(img, left, top, finalW, finalH);
+
+      ctx.save();
+      ctx.translate(centerX, centerY);
+      ctx.rotate((transform.rotation * Math.PI) / 180);
+      ctx.scale(transform.scaleX, transform.scaleY);
+      // Draw centered at origin
+      ctx.drawImage(img, -finalW / 2, -finalH / 2, finalW, finalH);
+      ctx.restore();
+
       ctx.globalCompositeOperation = prevComposite;
 
       setPendingTexture(null);
@@ -252,6 +263,99 @@ const Editor: React.FC<EditorProps> = ({
         removeLayer(activeLayerId);
     }
   };
+
+  // --- Interactive Gizmo Logic ---
+
+  const getClientCoordinates = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent) => {
+    if ('touches' in e) {
+        return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+    return { x: (e as React.MouseEvent).clientX, y: (e as React.MouseEvent).clientY };
+  };
+
+  const startTransform = (e: React.MouseEvent | React.TouchEvent, handle: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const coords = getClientCoordinates(e);
+    setIsTransforming(true);
+    setTransformStart(coords);
+    setInitialTransform({ ...transform });
+    setActiveHandle(handle);
+  };
+
+  const handleTransformMove = (e: MouseEvent | TouchEvent) => {
+    if (!isTransforming || !transformStart || !initialTransform || !containerRef.current) return;
+    e.preventDefault();
+
+    const coords = getClientCoordinates(e);
+    const deltaX = coords.x - transformStart.x;
+    const deltaY = coords.y - transformStart.y;
+    
+    const rect = containerRef.current.getBoundingClientRect();
+
+    if (activeHandle === 'move') {
+        // Move is in screen pixels, simple translation
+        setTransform({
+            ...initialTransform,
+            x: initialTransform.x + deltaX,
+            y: initialTransform.y + deltaY
+        });
+    } else {
+        // Scaling Logic
+        // We need to project the delta onto the rotated axes of the object
+        const angleRad = (initialTransform.rotation * Math.PI) / 180;
+        const cos = Math.cos(angleRad);
+        const sin = Math.sin(angleRad);
+
+        // Rotate delta into local space
+        const localDeltaX = deltaX * cos + deltaY * sin;
+        const localDeltaY = -deltaX * sin + deltaY * cos;
+
+        // Sensitivity factor based on canvas size
+        const scaleFactorX = 2 / rect.width; 
+        const scaleFactorY = 2 / rect.height;
+
+        let newScaleX = initialTransform.scaleX;
+        let newScaleY = initialTransform.scaleY;
+
+        if (activeHandle?.includes('e')) newScaleX += localDeltaX * scaleFactorX;
+        if (activeHandle?.includes('w')) newScaleX -= localDeltaX * scaleFactorX;
+        if (activeHandle?.includes('s')) newScaleY += localDeltaY * scaleFactorY;
+        if (activeHandle?.includes('n')) newScaleY -= localDeltaY * scaleFactorY;
+
+        setTransform({
+            ...initialTransform,
+            scaleX: newScaleX,
+            scaleY: newScaleY
+        });
+    }
+  };
+
+  const handleTransformEnd = () => {
+    setIsTransforming(false);
+    setTransformStart(null);
+    setInitialTransform(null);
+    setActiveHandle(null);
+  };
+
+  // Attach global listeners for drag when transforming
+  useEffect(() => {
+    if (isTransforming) {
+        window.addEventListener('mousemove', handleTransformMove, { passive: false });
+        window.addEventListener('mouseup', handleTransformEnd);
+        window.addEventListener('touchmove', handleTransformMove, { passive: false });
+        window.addEventListener('touchend', handleTransformEnd);
+        return () => {
+            window.removeEventListener('mousemove', handleTransformMove);
+            window.removeEventListener('mouseup', handleTransformEnd);
+            window.removeEventListener('touchmove', handleTransformMove);
+            window.removeEventListener('touchend', handleTransformEnd);
+        };
+    }
+  }, [isTransforming, transformStart, initialTransform, activeHandle]);
+
+
+  // --- Drawing Logic ---
 
   const getPoint = (e: React.MouseEvent | React.TouchEvent): Point | null => {
     const canvas = layerCanvasRefs.current.get(activeLayerId);
@@ -378,7 +482,7 @@ const Editor: React.FC<EditorProps> = ({
   return (
     <div className="flex-1 flex overflow-hidden">
         {/* Workspace Center */}
-        <div className="flex-1 bg-zinc-950/50 relative overflow-hidden flex items-center justify-center p-8 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-zinc-900 to-zinc-950">
+        <div className="flex-1 bg-zinc-950/50 relative overflow-hidden flex items-center justify-center p-8 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-zinc-900 to-zinc-950 select-none">
         
             {/* View Toggle */}
             <div className="absolute top-4 right-4 z-10">
@@ -421,7 +525,7 @@ const Editor: React.FC<EditorProps> = ({
                 </div>
             )}
 
-            {/* Alignment Tool */}
+            {/* Alignment Tool Controls */}
             {pendingTexture && (
                 <div className="absolute bottom-6 z-50 animate-in slide-in-from-bottom-6 fade-in duration-300">
                 <div className="bg-zinc-900/95 backdrop-blur-sm border border-zinc-700 p-4 rounded-xl shadow-2xl w-80 ring-1 ring-black/50">
@@ -437,32 +541,38 @@ const Editor: React.FC<EditorProps> = ({
                     {/* Controls */}
                     <div className="space-y-4">
                         {/* Position */}
-                        <div className="space-y-3">
-                             <div className="flex justify-between text-[10px] uppercase text-zinc-500 font-semibold"><span>Position</span></div>
-                             <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <span className="text-xs text-zinc-400 block mb-1">X</span>
-                                    <input type="range" min="-300" max="300" value={transform.x} onChange={e => setTransform(p => ({...p, x: Number(e.target.value)}))} className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-ew-resize accent-purple-500"/>
-                                </div>
-                                <div>
-                                    <span className="text-xs text-zinc-400 block mb-1">Y</span>
-                                    <input type="range" min="-300" max="300" value={transform.y} onChange={e => setTransform(p => ({...p, y: Number(e.target.value)}))} className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-ns-resize accent-purple-500"/>
-                                </div>
+                        <div className="space-y-2">
+                             <div className="flex justify-between text-[10px] uppercase text-zinc-500 font-semibold">
+                                <span>Position</span>
+                                <span className="text-zinc-400 font-mono">{Math.round(transform.x)}, {Math.round(transform.y)}</span>
+                             </div>
+                             <div className="text-xs text-zinc-500 flex items-center gap-2">
+                                <GripHorizontal className="w-4 h-4"/> Drag the image to move
                              </div>
                         </div>
+
                         {/* Scale */}
                         <div className="space-y-3 pt-2 border-t border-zinc-800">
                              <div className="flex justify-between text-[10px] uppercase text-zinc-500 font-semibold"><span>Scale</span></div>
                              <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <span className="text-xs text-zinc-400 block mb-1">W</span>
-                                    <input type="range" step="0.01" min="0.5" max="1.5" value={transform.scaleX} onChange={e => setTransform(p => ({...p, scaleX: Number(e.target.value)}))} className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-ew-resize accent-blue-500"/>
+                                    <input type="range" step="0.01" min="0.5" max="2" value={transform.scaleX} onChange={e => setTransform(p => ({...p, scaleX: Number(e.target.value)}))} className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-ew-resize accent-blue-500"/>
                                 </div>
                                 <div>
                                     <span className="text-xs text-zinc-400 block mb-1">H</span>
-                                    <input type="range" step="0.01" min="0.5" max="1.5" value={transform.scaleY} onChange={e => setTransform(p => ({...p, scaleY: Number(e.target.value)}))} className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-ns-resize accent-blue-500"/>
+                                    <input type="range" step="0.01" min="0.5" max="2" value={transform.scaleY} onChange={e => setTransform(p => ({...p, scaleY: Number(e.target.value)}))} className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-ns-resize accent-blue-500"/>
                                 </div>
                              </div>
+                        </div>
+                        
+                        {/* Rotation */}
+                        <div className="space-y-3 pt-2 border-t border-zinc-800">
+                             <div className="flex justify-between text-[10px] uppercase text-zinc-500 font-semibold">
+                                <span className="flex items-center gap-1"><RotateCw className="w-3 h-3"/> Rotation</span>
+                                <span className="text-zinc-400 font-mono">{transform.rotation}°</span>
+                             </div>
+                             <input type="range" min="-180" max="180" value={transform.rotation} onChange={e => setTransform(p => ({...p, rotation: Number(e.target.value)}))} className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-ew-resize accent-orange-500"/>
                         </div>
                     </div>
                 </div>
@@ -527,17 +637,57 @@ const Editor: React.FC<EditorProps> = ({
                     />
                 ))}
 
-                {/* Pending Texture Preview */}
+                {/* Pending Texture Preview & Interactive Gizmo */}
                 {pendingTexture && (
-                <img 
-                    src={pendingTexture}
-                    alt="Preview"
-                    className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none opacity-95" 
-                    style={{
-                    transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scaleX}, ${transform.scaleY})`,
-                    transformOrigin: 'center'
-                    }}
-                />
+                    <>
+                        {/* The Texture */}
+                        <img 
+                            src={pendingTexture}
+                            alt="Preview"
+                            className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none opacity-90 mix-blend-multiply" 
+                            style={{
+                                transform: `translate(${transform.x}px, ${transform.y}px) rotate(${transform.rotation}deg) scale(${transform.scaleX}, ${transform.scaleY})`,
+                                transformOrigin: 'center'
+                            }}
+                        />
+                        
+                        {/* Interactive Gizmo Overlay */}
+                        <div 
+                           className="absolute inset-0 w-full h-full select-none"
+                           style={{
+                                transform: `translate(${transform.x}px, ${transform.y}px) rotate(${transform.rotation}deg) scale(${transform.scaleX}, ${transform.scaleY})`,
+                                transformOrigin: 'center'
+                           }}
+                        >
+                             {/* Border */}
+                             <div 
+                                className="absolute inset-0 border-2 border-purple-500/80 shadow-2xl cursor-move hover:bg-purple-500/5 transition-colors"
+                                onMouseDown={(e) => startTransform(e, 'move')}
+                                onTouchStart={(e) => startTransform(e, 'move')}
+                             ></div>
+                             
+                             {/* Corner Handles */}
+                             {['nw', 'ne', 'sw', 'se'].map((pos) => (
+                                <div
+                                    key={pos}
+                                    className={`absolute w-4 h-4 bg-white border-2 border-purple-600 rounded-full shadow-lg z-20 hover:scale-125 transition-transform ${
+                                        pos === 'nw' ? '-top-2 -left-2 cursor-nw-resize' :
+                                        pos === 'ne' ? '-top-2 -right-2 cursor-ne-resize' :
+                                        pos === 'sw' ? '-bottom-2 -left-2 cursor-sw-resize' :
+                                        '-bottom-2 -right-2 cursor-se-resize'
+                                    }`}
+                                    onMouseDown={(e) => startTransform(e, pos)}
+                                    onTouchStart={(e) => startTransform(e, pos)}
+                                ></div>
+                             ))}
+
+                             {/* Edge Handles */}
+                             <div className="absolute top-1/2 -left-2 w-3 h-6 -mt-3 bg-white border border-purple-600 rounded cursor-w-resize z-10" onMouseDown={(e) => startTransform(e, 'w')} />
+                             <div className="absolute top-1/2 -right-2 w-3 h-6 -mt-3 bg-white border border-purple-600 rounded cursor-e-resize z-10" onMouseDown={(e) => startTransform(e, 'e')} />
+                             <div className="absolute left-1/2 -top-2 w-6 h-3 -ml-3 bg-white border border-purple-600 rounded cursor-n-resize z-10" onMouseDown={(e) => startTransform(e, 'n')} />
+                             <div className="absolute left-1/2 -bottom-2 w-6 h-3 -ml-3 bg-white border border-purple-600 rounded cursor-s-resize z-10" onMouseDown={(e) => startTransform(e, 's')} />
+                        </div>
+                    </>
                 )}
 
                 {/* Template Wireframe Overlay */}
