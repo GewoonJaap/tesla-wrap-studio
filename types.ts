@@ -33,3 +33,8 @@ export interface DrawingState {
   tool: ToolType;
   opacity: number;
 }
+
+export interface EditorHandle {
+  clearLayer: () => void;
+  getCompositeData: () => string | undefined;
+}

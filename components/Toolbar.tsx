@@ -37,7 +37,6 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
   const [showSecondaryColorPicker, setShowSecondaryColorPicker] = useState(false);
   const [customReference, setCustomReference] = useState<string | null>(null);
   
-  // API Key State
   const [apiKey, setApiKey] = useState<string>('');
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [tempKey, setTempKey] = useState('');
@@ -51,7 +50,6 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
     }
   }, []);
 
-  // Handle Paste Events for Images
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
@@ -79,15 +77,8 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
     return () => window.removeEventListener('paste', handlePaste);
   }, []);
 
-  /**
-   * Helper to create a composite image of the current canvas + the template wireframe.
-   * This ensures the AI receives the structural context (UV Map) to align the texture correctly.
-   */
   const getCompositeReference = async (): Promise<string | undefined> => {
-    // 1. If custom reference exists, use it directly (user wants style transfer on their image)
     if (customReference) return customReference;
-
-    // 2. Otherwise, create composite: Canvas Drawing + Template Overlay
     const canvasData = getCanvasData();
     const templateUrl = `${GITHUB_BASE_URL}/${selectedModel.folderName}/template.png`;
 
@@ -95,14 +86,12 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       if (!ctx) {
-        resolve(canvasData); // Fallback
+        resolve(canvasData); 
         return;
       }
 
       const bgImg = new Image();
       const templateImg = new Image();
-      
-      // Handle CORS for the template image
       bgImg.crossOrigin = "anonymous";
       templateImg.crossOrigin = "anonymous";
 
@@ -115,17 +104,10 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
            return;
         }
         if (imagesLoaded === 2) {
-          // Both images loaded
-          // Use natural dimensions of template or default to 1024
           canvas.width = templateImg.naturalWidth || 1024;
           canvas.height = templateImg.naturalHeight || 1024;
-
-          // 1. Draw the user's drawing (background)
           ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
-          
-          // 2. Draw the template (wireframe) on top
           ctx.drawImage(templateImg, 0, 0, canvas.width, canvas.height);
-
           resolve(canvas.toDataURL('image/png'));
         }
       };
@@ -143,29 +125,22 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
 
       bgImg.onload = onLoad;
       bgImg.onerror = onError;
-      
       templateImg.onload = onLoad;
       templateImg.onerror = onError;
 
-      // Load images
-      // If canvasData is empty/undefined, use a 1x1 white pixel to ensure we have a background
       bgImg.src = canvasData || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAANSURBVBhXY2BgYAAAAAQAAVzN/2kAAAAASUVORK5CYII=';
-      // Append time to avoid cache issues if needed, though usually not needed for raw github
       templateImg.src = templateUrl;
     });
   };
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
-
     if (!apiKey) {
       setShowKeyModal(true);
       return;
     }
-
     setIsGenerating(true);
     try {
-      // Get the best reference image we can (Composite or Custom)
       const referenceData = await getCompositeReference();
       const textureUrl = await generateTexture(prompt, apiKey, referenceData);
       onApplyTexture(textureUrl);
@@ -210,7 +185,6 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
     const file = e.dataTransfer.files?.[0];
     if (file && file.type.startsWith('image/')) {
       const reader = new FileReader();
@@ -247,7 +221,6 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
           </div>
           
           <div className="space-y-3">
-            {/* Image Upload Area */}
             <div 
               className={`relative border border-dashed rounded-lg transition-all overflow-hidden group ${customReference ? 'border-purple-500/50' : 'border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/30'}`}
               onDragOver={(e) => e.preventDefault()}
@@ -573,7 +546,7 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
             className="w-full border border-red-500/20 text-red-400 hover:bg-red-500/10 hover:border-red-500/30 px-4 py-3 rounded-lg transition-all flex items-center justify-center gap-2 text-sm font-medium"
           >
             <RotateCcw className="w-4 h-4" />
-            Clear Canvas
+            Clear Active Layer
           </button>
         </div>
       </aside>

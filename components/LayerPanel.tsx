@@ -25,8 +25,6 @@ const LayerPanel: React.FC<LayerPanelProps> = ({
   onUpdateOpacity,
   onRenameLayer
 }) => {
-  // We reverse the layers for display so the "Top" layer is at the top of the list
-  // But logically, index 0 is the background (bottom)
   const displayLayers = [...layers].reverse();
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -84,7 +82,6 @@ const LayerPanel: React.FC<LayerPanelProps> = ({
 
       <div className="flex-1 overflow-y-auto scrollbar-thin p-2 space-y-1">
         {displayLayers.map((layer, index) => {
-          // Calculate actual index in the original array
           const originalIndex = layers.length - 1 - index;
           const isActive = layer.id === activeLayerId;
           const isEditing = editingId === layer.id;
@@ -195,7 +192,6 @@ const LayerPanel: React.FC<LayerPanelProps> = ({
         })}
       </div>
       
-      {/* Active Layer Status */}
       <div className="p-3 border-t border-zinc-800 bg-zinc-950/50 text-xs text-zinc-500 text-center">
          {layers.length} Layers • {layers.filter(l => l.visible).length} Visible
       </div>

@@ -1,7 +1,7 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { CarModel, DrawingState, Point, ToolType, Layer } from '../types';
+import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef } from 'react';
+import { CarModel, DrawingState, Point, ToolType, Layer, EditorHandle } from '../types';
 import { GITHUB_BASE_URL } from '../constants';
-import { Loader2, Eye, EyeOff, Move, Check, X as XIcon, Maximize, ArrowLeftRight, ArrowUpDown, RotateCw, GripHorizontal } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Move, Check, X as XIcon, RotateCw, GripHorizontal } from 'lucide-react';
 import LayerPanel from './LayerPanel';
 
 interface EditorProps {
@@ -9,7 +9,6 @@ interface EditorProps {
   drawingState: DrawingState;
   textureToApply: string | null;
   onTextureApplied: () => void;
-  onCompositeRequest: (callback: () => string | undefined) => void;
 }
 
 interface TransformState {
@@ -20,13 +19,12 @@ interface TransformState {
   rotation: number;
 }
 
-const Editor: React.FC<EditorProps> = ({ 
+const Editor = forwardRef<EditorHandle, EditorProps>(({ 
   model, 
   drawingState, 
   textureToApply,
-  onTextureApplied,
-  onCompositeRequest
-}) => {
+  onTextureApplied
+}, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   
   // Layer Management
@@ -69,6 +67,49 @@ const Editor: React.FC<EditorProps> = ({
   // Construct URLs
   const templateUrl = `${GITHUB_BASE_URL}/${model.folderName}/template.png`;
   const referenceUrl = `${GITHUB_BASE_URL}/${model.folderName}/vehicle_image.png`;
+
+  // Expose methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    clearLayer: () => {
+      const canvas = layerCanvasRefs.current.get(activeLayerId);
+      const ctx = canvas?.getContext('2d');
+      if (canvas && ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // If it's the background layer, refill with white
+        const activeLayer = layers.find(l => l.id === activeLayerId);
+        if (activeLayer?.name === 'Background') {
+           ctx.fillStyle = '#FFFFFF';
+           ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+      }
+    },
+    getCompositeData: () => {
+      if (!templateImgRef.current) return undefined;
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = templateImgRef.current.naturalWidth;
+      canvas.height = templateImgRef.current.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return undefined;
+
+      // Fill White Background Base
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Draw all visible layers in order
+      layers.forEach(layer => {
+          if (layer.visible) {
+              const layerCanvas = layerCanvasRefs.current.get(layer.id);
+              if (layerCanvas) {
+                  ctx.globalAlpha = layer.opacity;
+                  ctx.drawImage(layerCanvas, 0, 0);
+              }
+          }
+      });
+
+      return canvas.toDataURL('image/png');
+    }
+  }), [layers, activeLayerId]);
 
   // --- Layer Operations ---
 
@@ -121,7 +162,6 @@ const Editor: React.FC<EditorProps> = ({
 
   // --- Lifecycle & Initialization ---
 
-  // Initialize Template
   useEffect(() => {
     setIsTemplateLoaded(false);
     setTemplateError(false);
@@ -146,60 +186,19 @@ const Editor: React.FC<EditorProps> = ({
 
   }, [model]);
 
-  // Handle incoming texture
   useEffect(() => {
     if (textureToApply && isTemplateLoaded) {
-      // 1. Create a New Layer automatically for the AI texture
       const newId = addLayer("AI Texture");
-      
-      // 2. Set as pending for alignment
       setPendingTexture(textureToApply);
       setTransform({ x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
-      
-      // 3. Clear parent signal
       onTextureApplied(); 
     }
   }, [textureToApply, isTemplateLoaded, onTextureApplied]);
-
-  // Expose Composite Data Generator to Parent
-  useEffect(() => {
-    if (onCompositeRequest) {
-        onCompositeRequest(() => {
-            if (!templateImgRef.current) return undefined;
-            
-            // Create a temp canvas
-            const canvas = document.createElement('canvas');
-            canvas.width = templateImgRef.current.naturalWidth;
-            canvas.height = templateImgRef.current.naturalHeight;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) return undefined;
-
-            // Fill White Background
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Draw all visible layers in order
-            layers.forEach(layer => {
-                if (layer.visible) {
-                    const layerCanvas = layerCanvasRefs.current.get(layer.id);
-                    if (layerCanvas) {
-                        ctx.globalAlpha = layer.opacity;
-                        ctx.drawImage(layerCanvas, 0, 0);
-                    }
-                }
-            });
-
-            return canvas.toDataURL('image/png');
-        });
-    }
-  }, [layers, onCompositeRequest]);
-
 
   // Helper: Init a specific layer canvas
   const initLayerCanvas = (canvas: HTMLCanvasElement, isBackground: boolean) => {
     if (!templateImgRef.current) return;
     
-    // Only resize if needed to avoid clearing content
     if (canvas.width !== templateImgRef.current.naturalWidth || canvas.height !== templateImgRef.current.naturalHeight) {
         canvas.width = templateImgRef.current.naturalWidth;
         canvas.height = templateImgRef.current.naturalHeight;
@@ -217,7 +216,6 @@ const Editor: React.FC<EditorProps> = ({
   // --- Transform Logic ---
 
   const applyPendingTexture = () => {
-    // Apply to the ACTIVE layer
     const canvas = layerCanvasRefs.current.get(activeLayerId);
     if (!canvas || !pendingTexture || !containerRef.current) return;
 
@@ -229,18 +227,9 @@ const Editor: React.FC<EditorProps> = ({
     img.src = pendingTexture;
     
     img.onload = () => {
-      // Calculate Mapping
       const rect = containerRef.current!.getBoundingClientRect();
       const ratioX = canvas.width / rect.width;
       const ratioY = canvas.height / rect.height;
-
-      // When extracting, we created the image at canvas scale already, 
-      // but the GIZMO operates in relation to the visible container.
-      // So if the gizmo shows 100% size, we mean 100% of the SOURCE image size.
-      // However, our logic draws the image centered.
-      
-      const finalW = img.width; // Use natural width of source
-      const finalH = img.height;
       
       const shiftX = transform.x * ratioX;
       const shiftY = transform.y * ratioY;
@@ -248,26 +237,30 @@ const Editor: React.FC<EditorProps> = ({
       const centerX = (canvas.width / 2) + shiftX;
       const centerY = (canvas.height / 2) + shiftY;
 
+      // Calculate the target dimensions based on scale (normalized 0-1 relative to canvas)
+      // Since our preview is always w-full h-full (scaling with transform), 
+      // scaleX=1 means width=CanvasWidth.
+      const targetW = canvas.width * transform.scaleX;
+      const targetH = canvas.height * transform.scaleY;
+
       const prevComposite = ctx.globalCompositeOperation;
       ctx.globalCompositeOperation = 'source-over';
 
       ctx.save();
       ctx.translate(centerX, centerY);
       ctx.rotate((transform.rotation * Math.PI) / 180);
-      ctx.scale(transform.scaleX, transform.scaleY);
-      // Draw centered at origin
-      ctx.drawImage(img, -finalW / 2, -finalH / 2, finalW, finalH);
+      
+      // Draw image to fill the target rect
+      ctx.drawImage(img, -targetW / 2, -targetH / 2, targetW, targetH);
+      
       ctx.restore();
-
       ctx.globalCompositeOperation = prevComposite;
-
       setPendingTexture(null);
     };
   };
 
   const cancelPendingTexture = () => {
     setPendingTexture(null);
-    // Remove the layer created for this texture if we cancel (Only if we just created it for AI)
     if (activeLayerId && layers.find(l => l.id === activeLayerId)?.name === "AI Texture") {
         removeLayer(activeLayerId);
     }
@@ -299,27 +292,20 @@ const Editor: React.FC<EditorProps> = ({
     const coords = getClientCoordinates(e);
     const deltaX = coords.x - transformStart.x;
     const deltaY = coords.y - transformStart.y;
-    
     const rect = containerRef.current.getBoundingClientRect();
 
     if (activeHandle === 'move') {
-        // Move is in screen pixels, simple translation
         setTransform({
             ...initialTransform,
             x: initialTransform.x + deltaX,
             y: initialTransform.y + deltaY
         });
     } else {
-        // Scaling Logic
         const angleRad = (initialTransform.rotation * Math.PI) / 180;
         const cos = Math.cos(angleRad);
         const sin = Math.sin(angleRad);
-
-        // Rotate delta into local space
         const localDeltaX = deltaX * cos + deltaY * sin;
         const localDeltaY = -deltaX * sin + deltaY * cos;
-
-        // Sensitivity factor based on canvas size
         const scaleFactorX = 2 / rect.width; 
         const scaleFactorY = 2 / rect.height;
 
@@ -346,7 +332,6 @@ const Editor: React.FC<EditorProps> = ({
     setActiveHandle(null);
   };
 
-  // Attach global listeners for drag when transforming
   useEffect(() => {
     if (isTransforming) {
         window.addEventListener('mousemove', handleTransformMove, { passive: false });
@@ -361,7 +346,6 @@ const Editor: React.FC<EditorProps> = ({
         };
     }
   }, [isTransforming, transformStart, initialTransform, activeHandle]);
-
 
   // --- Drawing & Selection Logic ---
 
@@ -386,12 +370,10 @@ const Editor: React.FC<EditorProps> = ({
 
   const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
     if (pendingTexture) return;
-    
     const activeLayer = layers.find(l => l.id === activeLayerId);
     if (!activeLayer?.visible) return;
 
     e.preventDefault(); 
-    
     const point = getPoint(e);
     if (!point) return;
 
@@ -411,7 +393,6 @@ const Editor: React.FC<EditorProps> = ({
   const draw = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isDrawing || pendingTexture) return;
     e.preventDefault();
-
     const currentPoint = getPoint(e);
     if (!currentPoint) return;
 
@@ -494,13 +475,13 @@ const Editor: React.FC<EditorProps> = ({
       const ctx = canvas?.getContext('2d');
       
       if (canvas && ctx && containerRef.current) {
-        // Normalize coordinates (handle negative width/height)
+        // Normalize coordinates
         const x = Math.min(selectionStart.x, selectionEnd.x);
         const y = Math.min(selectionStart.y, selectionEnd.y);
         const w = Math.abs(selectionEnd.x - selectionStart.x);
         const h = Math.abs(selectionEnd.y - selectionStart.y);
 
-        if (w > 5 && h > 5) { // Minimum threshold
+        if (w > 5 && h > 5) {
             try {
                 // 1. Extract ImageData
                 const imageData = ctx.getImageData(x, y, w, h);
@@ -516,13 +497,10 @@ const Editor: React.FC<EditorProps> = ({
                 if (tempCtx) {
                     tempCtx.putImageData(imageData, 0, 0);
                     
-                    // 4. Set pending texture for Gizmo
+                    // 4. Set pending texture
                     setPendingTexture(tempCanvas.toDataURL());
 
-                    // 5. Calculate offset to place the cutout EXACTLY where it was
-                    // Gizmo draws centered at (Width/2 + x, Height/2 + y)
-                    // We want CutoutCenter == CanvasCenter + Offset
-                    
+                    // 5. Calculate offset and SCALE to place it exactly
                     const canvasCenterX = canvas.width / 2;
                     const canvasCenterY = canvas.height / 2;
                     const cutoutCenterX = x + (w / 2);
@@ -532,15 +510,18 @@ const Editor: React.FC<EditorProps> = ({
                     const ratioX = rect.width / canvas.width;
                     const ratioY = rect.height / canvas.height;
 
-                    // Convert canvas pixel offset to screen pixel offset (for transform state)
                     const offsetX = (cutoutCenterX - canvasCenterX) * ratioX;
                     const offsetY = (cutoutCenterY - canvasCenterY) * ratioY;
+                    
+                    // Initial scale: Fraction of canvas this fragment represents
+                    const initialScaleX = w / canvas.width;
+                    const initialScaleY = h / canvas.height;
 
                     setTransform({
                         x: offsetX,
                         y: offsetY,
-                        scaleX: 1,
-                        scaleY: 1,
+                        scaleX: initialScaleX,
+                        scaleY: initialScaleY,
                         rotation: 0
                     });
                 }
@@ -658,7 +639,7 @@ const Editor: React.FC<EditorProps> = ({
                 cursor: drawingState.tool === ToolType.GRADIENT || drawingState.tool === ToolType.TRANSFORM ? 'crosshair' : 'default'
                 }}
             >
-                {/* Ghost Image to prop open the container */}
+                {/* Ghost Image */}
                 {isTemplateLoaded && (
                     <img 
                         src={templateUrl} 
@@ -668,10 +649,10 @@ const Editor: React.FC<EditorProps> = ({
                     />
                 )}
 
-                {/* Background Fill (Visible white background behind layers) */}
+                {/* Background Fill */}
                 <div className="absolute inset-0 bg-white" />
 
-                {/* Dynamic Layers */}
+                {/* Layers */}
                 {layers.map(layer => (
                     <canvas
                         key={layer.id}
@@ -691,7 +672,6 @@ const Editor: React.FC<EditorProps> = ({
                 {/* Pending Texture Preview & Interactive Gizmo */}
                 {pendingTexture && (
                     <>
-                        {/* The Texture */}
                         <img 
                             src={pendingTexture}
                             alt="Preview"
@@ -702,7 +682,6 @@ const Editor: React.FC<EditorProps> = ({
                             }}
                         />
                         
-                        {/* Interactive Gizmo Overlay */}
                         <div 
                            className="absolute inset-0 w-full h-full select-none"
                            style={{
@@ -710,14 +689,12 @@ const Editor: React.FC<EditorProps> = ({
                                 transformOrigin: 'center'
                            }}
                         >
-                             {/* Border */}
                              <div 
                                 className="absolute inset-0 border-2 border-purple-500/80 shadow-2xl cursor-move hover:bg-purple-500/5 transition-colors"
                                 onMouseDown={(e) => startTransform(e, 'move')}
                                 onTouchStart={(e) => startTransform(e, 'move')}
                              ></div>
                              
-                             {/* Corner Handles */}
                              {['nw', 'ne', 'sw', 'se'].map((pos) => (
                                 <div
                                     key={pos}
@@ -731,8 +708,6 @@ const Editor: React.FC<EditorProps> = ({
                                     onTouchStart={(e) => startTransform(e, pos)}
                                 ></div>
                              ))}
-
-                             {/* Edge Handles */}
                              <div className="absolute top-1/2 -left-2 w-3 h-6 -mt-3 bg-white border border-purple-600 rounded cursor-w-resize z-10" onMouseDown={(e) => startTransform(e, 'w')} />
                              <div className="absolute top-1/2 -right-2 w-3 h-6 -mt-3 bg-white border border-purple-600 rounded cursor-e-resize z-10" onMouseDown={(e) => startTransform(e, 'e')} />
                              <div className="absolute left-1/2 -top-2 w-6 h-3 -ml-3 bg-white border border-purple-600 rounded cursor-n-resize z-10" onMouseDown={(e) => startTransform(e, 'n')} />
@@ -741,7 +716,7 @@ const Editor: React.FC<EditorProps> = ({
                     </>
                 )}
 
-                {/* Template Wireframe Overlay */}
+                {/* Template Wireframe */}
                 {isTemplateLoaded && (
                     <img 
                         src={templateUrl} 
@@ -750,7 +725,7 @@ const Editor: React.FC<EditorProps> = ({
                     />
                 )}
 
-                {/* Vector SVG for Gradient Tool & Selection Marquee */}
+                {/* SVG Overlays */}
                 <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-50">
                     <defs>
                     <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -760,29 +735,16 @@ const Editor: React.FC<EditorProps> = ({
 
                     {/* Gradient Line */}
                     {isDrawing && drawingState.tool === ToolType.GRADIENT && gradientStart && currentDrag && (
-                        <>
-                            <line 
-                            x1={gradientStart.x / (containerRef.current?.getBoundingClientRect().width || 1) * 100 + '%'} 
-                            y1={gradientStart.y / (containerRef.current?.getBoundingClientRect().height || 1) * 100 + '%'} 
-                            x2={currentDrag.x / (containerRef.current?.getBoundingClientRect().width || 1) * 100 + '%'} 
-                            y2={currentDrag.y / (containerRef.current?.getBoundingClientRect().height || 1) * 100 + '%'} 
-                            stroke="#3b82f6" 
-                            strokeWidth="2"
-                            strokeDasharray="5,5"
-                            markerEnd="url(#arrowhead)"
-                            />
-                            {drawingState.gradientType === 'radial' && (
-                                <circle 
-                                    cx={gradientStart.x / (containerRef.current?.getBoundingClientRect().width || 1) * 100 + '%'} 
-                                    cy={gradientStart.y / (containerRef.current?.getBoundingClientRect().height || 1) * 100 + '%'} 
-                                    r={Math.hypot(currentDrag.x - gradientStart.x, currentDrag.y - gradientStart.y) / (containerRef.current?.getBoundingClientRect().width || 1) * 100 + '%'}
-                                    fill="none"
-                                    stroke="#3b82f6"
-                                    strokeWidth="1"
-                                    opacity="0.5"
-                                />
-                            )}
-                        </>
+                        <line 
+                        x1={gradientStart.x / (containerRef.current?.getBoundingClientRect().width || 1) * 100 + '%'} 
+                        y1={gradientStart.y / (containerRef.current?.getBoundingClientRect().height || 1) * 100 + '%'} 
+                        x2={currentDrag.x / (containerRef.current?.getBoundingClientRect().width || 1) * 100 + '%'} 
+                        y2={currentDrag.y / (containerRef.current?.getBoundingClientRect().height || 1) * 100 + '%'} 
+                        stroke="#3b82f6" 
+                        strokeWidth="2"
+                        strokeDasharray="5,5"
+                        markerEnd="url(#arrowhead)"
+                        />
                     )}
 
                     {/* Selection Box */}
@@ -803,7 +765,6 @@ const Editor: React.FC<EditorProps> = ({
             </div>
         </div>
 
-        {/* Layer Panel Sidebar */}
         <LayerPanel 
             layers={layers}
             activeLayerId={activeLayerId}
@@ -817,6 +778,6 @@ const Editor: React.FC<EditorProps> = ({
         />
     </div>
   );
-};
+});
 
 export default Editor;
