@@ -62,6 +62,10 @@ const Editor: React.FC<EditorProps> = ({
   const [initialTransform, setInitialTransform] = useState<TransformState | null>(null);
   const [activeHandle, setActiveHandle] = useState<string | null>(null);
 
+  // Selection Tool State
+  const [selectionStart, setSelectionStart] = useState<Point | null>(null);
+  const [selectionEnd, setSelectionEnd] = useState<Point | null>(null);
+
   // Construct URLs
   const templateUrl = `${GITHUB_BASE_URL}/${model.folderName}/template.png`;
   const referenceUrl = `${GITHUB_BASE_URL}/${model.folderName}/vehicle_image.png`;
@@ -213,7 +217,7 @@ const Editor: React.FC<EditorProps> = ({
   // --- Transform Logic ---
 
   const applyPendingTexture = () => {
-    // Apply to the ACTIVE layer (which we just created)
+    // Apply to the ACTIVE layer
     const canvas = layerCanvasRefs.current.get(activeLayerId);
     if (!canvas || !pendingTexture || !containerRef.current) return;
 
@@ -230,8 +234,13 @@ const Editor: React.FC<EditorProps> = ({
       const ratioX = canvas.width / rect.width;
       const ratioY = canvas.height / rect.height;
 
-      const finalW = canvas.width; // Base width matches canvas for high res
-      const finalH = canvas.height;
+      // When extracting, we created the image at canvas scale already, 
+      // but the GIZMO operates in relation to the visible container.
+      // So if the gizmo shows 100% size, we mean 100% of the SOURCE image size.
+      // However, our logic draws the image centered.
+      
+      const finalW = img.width; // Use natural width of source
+      const finalH = img.height;
       
       const shiftX = transform.x * ratioX;
       const shiftY = transform.y * ratioY;
@@ -258,7 +267,7 @@ const Editor: React.FC<EditorProps> = ({
 
   const cancelPendingTexture = () => {
     setPendingTexture(null);
-    // Remove the layer created for this texture if we cancel
+    // Remove the layer created for this texture if we cancel (Only if we just created it for AI)
     if (activeLayerId && layers.find(l => l.id === activeLayerId)?.name === "AI Texture") {
         removeLayer(activeLayerId);
     }
@@ -302,7 +311,6 @@ const Editor: React.FC<EditorProps> = ({
         });
     } else {
         // Scaling Logic
-        // We need to project the delta onto the rotated axes of the object
         const angleRad = (initialTransform.rotation * Math.PI) / 180;
         const cos = Math.cos(angleRad);
         const sin = Math.sin(angleRad);
@@ -355,7 +363,7 @@ const Editor: React.FC<EditorProps> = ({
   }, [isTransforming, transformStart, initialTransform, activeHandle]);
 
 
-  // --- Drawing Logic ---
+  // --- Drawing & Selection Logic ---
 
   const getPoint = (e: React.MouseEvent | React.TouchEvent): Point | null => {
     const canvas = layerCanvasRefs.current.get(activeLayerId);
@@ -379,7 +387,6 @@ const Editor: React.FC<EditorProps> = ({
   const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
     if (pendingTexture) return;
     
-    // Don't draw if clicking on hidden layer
     const activeLayer = layers.find(l => l.id === activeLayerId);
     if (!activeLayer?.visible) return;
 
@@ -393,6 +400,9 @@ const Editor: React.FC<EditorProps> = ({
     if (drawingState.tool === ToolType.GRADIENT) {
       setGradientStart(point);
       setCurrentDrag(point);
+    } else if (drawingState.tool === ToolType.TRANSFORM) {
+      setSelectionStart(point);
+      setSelectionEnd(point);
     } else {
       setLastPoint(point);
     }
@@ -410,9 +420,13 @@ const Editor: React.FC<EditorProps> = ({
       return;
     }
 
+    if (drawingState.tool === ToolType.TRANSFORM) {
+      setSelectionEnd(currentPoint);
+      return;
+    }
+
     if (!lastPoint) return;
     
-    // Draw on Active Layer
     const canvas = layerCanvasRefs.current.get(activeLayerId);
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
@@ -447,7 +461,6 @@ const Editor: React.FC<EditorProps> = ({
       if (canvas && ctx) {
         const start = gradientStart;
         const end = currentDrag;
-
         const prevComposite = ctx.globalCompositeOperation;
         const prevAlpha = ctx.globalAlpha;
         
@@ -471,12 +484,77 @@ const Editor: React.FC<EditorProps> = ({
         ctx.globalCompositeOperation = prevComposite;
         ctx.globalAlpha = prevAlpha;
       }
+      setGradientStart(null);
+      setCurrentDrag(null);
+    }
+    
+    // Apply Transform Extraction (Cut pixel data)
+    if (drawingState.tool === ToolType.TRANSFORM && selectionStart && selectionEnd) {
+      const canvas = layerCanvasRefs.current.get(activeLayerId);
+      const ctx = canvas?.getContext('2d');
+      
+      if (canvas && ctx && containerRef.current) {
+        // Normalize coordinates (handle negative width/height)
+        const x = Math.min(selectionStart.x, selectionEnd.x);
+        const y = Math.min(selectionStart.y, selectionEnd.y);
+        const w = Math.abs(selectionEnd.x - selectionStart.x);
+        const h = Math.abs(selectionEnd.y - selectionStart.y);
+
+        if (w > 5 && h > 5) { // Minimum threshold
+            try {
+                // 1. Extract ImageData
+                const imageData = ctx.getImageData(x, y, w, h);
+                
+                // 2. Clear Source
+                ctx.clearRect(x, y, w, h);
+
+                // 3. Create temp canvas for the cutout
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = w;
+                tempCanvas.height = h;
+                const tempCtx = tempCanvas.getContext('2d');
+                if (tempCtx) {
+                    tempCtx.putImageData(imageData, 0, 0);
+                    
+                    // 4. Set pending texture for Gizmo
+                    setPendingTexture(tempCanvas.toDataURL());
+
+                    // 5. Calculate offset to place the cutout EXACTLY where it was
+                    // Gizmo draws centered at (Width/2 + x, Height/2 + y)
+                    // We want CutoutCenter == CanvasCenter + Offset
+                    
+                    const canvasCenterX = canvas.width / 2;
+                    const canvasCenterY = canvas.height / 2;
+                    const cutoutCenterX = x + (w / 2);
+                    const cutoutCenterY = y + (h / 2);
+
+                    const rect = containerRef.current.getBoundingClientRect();
+                    const ratioX = rect.width / canvas.width;
+                    const ratioY = rect.height / canvas.height;
+
+                    // Convert canvas pixel offset to screen pixel offset (for transform state)
+                    const offsetX = (cutoutCenterX - canvasCenterX) * ratioX;
+                    const offsetY = (cutoutCenterY - canvasCenterY) * ratioY;
+
+                    setTransform({
+                        x: offsetX,
+                        y: offsetY,
+                        scaleX: 1,
+                        scaleY: 1,
+                        rotation: 0
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to extract selection", err);
+            }
+        }
+      }
+      setSelectionStart(null);
+      setSelectionEnd(null);
     }
 
     setIsDrawing(false);
     setLastPoint(null);
-    setGradientStart(null);
-    setCurrentDrag(null);
   };
 
   return (
@@ -531,7 +609,7 @@ const Editor: React.FC<EditorProps> = ({
                 <div className="bg-zinc-900/95 backdrop-blur-sm border border-zinc-700 p-4 rounded-xl shadow-2xl w-80 ring-1 ring-black/50">
                     <div className="flex justify-between items-center border-b border-zinc-800 pb-3 mb-4">
                     <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                        <Move className="w-4 h-4 text-purple-400" /> Adjust Alignment
+                        <Move className="w-4 h-4 text-purple-400" /> Adjust & Place
                     </h3>
                     <div className="flex gap-2">
                         <button onClick={cancelPendingTexture} className="p-1.5 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-lg"><XIcon className="w-4 h-4"/></button>
@@ -540,32 +618,16 @@ const Editor: React.FC<EditorProps> = ({
                     </div>
                     {/* Controls */}
                     <div className="space-y-4">
-                        {/* Position */}
                         <div className="space-y-2">
                              <div className="flex justify-between text-[10px] uppercase text-zinc-500 font-semibold">
                                 <span>Position</span>
                                 <span className="text-zinc-400 font-mono">{Math.round(transform.x)}, {Math.round(transform.y)}</span>
                              </div>
                              <div className="text-xs text-zinc-500 flex items-center gap-2">
-                                <GripHorizontal className="w-4 h-4"/> Drag the image to move
+                                <GripHorizontal className="w-4 h-4"/> Drag to move, handles to scale
                              </div>
                         </div>
 
-                        {/* Scale */}
-                        <div className="space-y-3 pt-2 border-t border-zinc-800">
-                             <div className="flex justify-between text-[10px] uppercase text-zinc-500 font-semibold"><span>Scale</span></div>
-                             <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <span className="text-xs text-zinc-400 block mb-1">W</span>
-                                    <input type="range" step="0.01" min="0.5" max="2" value={transform.scaleX} onChange={e => setTransform(p => ({...p, scaleX: Number(e.target.value)}))} className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-ew-resize accent-blue-500"/>
-                                </div>
-                                <div>
-                                    <span className="text-xs text-zinc-400 block mb-1">H</span>
-                                    <input type="range" step="0.01" min="0.5" max="2" value={transform.scaleY} onChange={e => setTransform(p => ({...p, scaleY: Number(e.target.value)}))} className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-ns-resize accent-blue-500"/>
-                                </div>
-                             </div>
-                        </div>
-                        
                         {/* Rotation */}
                         <div className="space-y-3 pt-2 border-t border-zinc-800">
                              <div className="flex justify-between text-[10px] uppercase text-zinc-500 font-semibold">
@@ -593,20 +655,9 @@ const Editor: React.FC<EditorProps> = ({
                 style={{ 
                 maxWidth: '100%', 
                 maxHeight: '100%',
-                // aspectRatio Removed as the Ghost Image now dictates size
-                cursor: drawingState.tool === ToolType.GRADIENT ? 'crosshair' : 'default'
+                cursor: drawingState.tool === ToolType.GRADIENT || drawingState.tool === ToolType.TRANSFORM ? 'crosshair' : 'default'
                 }}
             >
-                {/* 
-                  RENDER STACK:
-                  0. Ghost Image (Relative, Invisible) - Forces container size
-                  1. White Base (Absolute)
-                  2. Layers (Absolute)
-                  3. Pending Texture (Absolute)
-                  4. Template Overlay (Absolute)
-                  5. SVG Overlay (Absolute)
-                */}
-                
                 {/* Ghost Image to prop open the container */}
                 {isTemplateLoaded && (
                     <img 
@@ -699,37 +750,56 @@ const Editor: React.FC<EditorProps> = ({
                     />
                 )}
 
-                {/* Vector SVG for Gradient Tool */}
-                {isDrawing && drawingState.tool === ToolType.GRADIENT && gradientStart && currentDrag && (
-                    <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-50">
-                        <defs>
-                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                            <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
-                        </marker>
-                        </defs>
-                        <line 
-                        x1={gradientStart.x / (containerRef.current?.getBoundingClientRect().width || 1) * 100 + '%'} 
-                        y1={gradientStart.y / (containerRef.current?.getBoundingClientRect().height || 1) * 100 + '%'} 
-                        x2={currentDrag.x / (containerRef.current?.getBoundingClientRect().width || 1) * 100 + '%'} 
-                        y2={currentDrag.y / (containerRef.current?.getBoundingClientRect().height || 1) * 100 + '%'} 
-                        stroke="#3b82f6" 
-                        strokeWidth="2"
-                        strokeDasharray="5,5"
-                        markerEnd="url(#arrowhead)"
-                        />
-                         {drawingState.gradientType === 'radial' && (
-                            <circle 
-                                cx={gradientStart.x / (containerRef.current?.getBoundingClientRect().width || 1) * 100 + '%'} 
-                                cy={gradientStart.y / (containerRef.current?.getBoundingClientRect().height || 1) * 100 + '%'} 
-                                r={Math.hypot(currentDrag.x - gradientStart.x, currentDrag.y - gradientStart.y) / (containerRef.current?.getBoundingClientRect().width || 1) * 100 + '%'}
-                                fill="none"
-                                stroke="#3b82f6"
-                                strokeWidth="1"
-                                opacity="0.5"
+                {/* Vector SVG for Gradient Tool & Selection Marquee */}
+                <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-50">
+                    <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
+                    </marker>
+                    </defs>
+
+                    {/* Gradient Line */}
+                    {isDrawing && drawingState.tool === ToolType.GRADIENT && gradientStart && currentDrag && (
+                        <>
+                            <line 
+                            x1={gradientStart.x / (containerRef.current?.getBoundingClientRect().width || 1) * 100 + '%'} 
+                            y1={gradientStart.y / (containerRef.current?.getBoundingClientRect().height || 1) * 100 + '%'} 
+                            x2={currentDrag.x / (containerRef.current?.getBoundingClientRect().width || 1) * 100 + '%'} 
+                            y2={currentDrag.y / (containerRef.current?.getBoundingClientRect().height || 1) * 100 + '%'} 
+                            stroke="#3b82f6" 
+                            strokeWidth="2"
+                            strokeDasharray="5,5"
+                            markerEnd="url(#arrowhead)"
                             />
-                         )}
-                    </svg>
-                )}
+                            {drawingState.gradientType === 'radial' && (
+                                <circle 
+                                    cx={gradientStart.x / (containerRef.current?.getBoundingClientRect().width || 1) * 100 + '%'} 
+                                    cy={gradientStart.y / (containerRef.current?.getBoundingClientRect().height || 1) * 100 + '%'} 
+                                    r={Math.hypot(currentDrag.x - gradientStart.x, currentDrag.y - gradientStart.y) / (containerRef.current?.getBoundingClientRect().width || 1) * 100 + '%'}
+                                    fill="none"
+                                    stroke="#3b82f6"
+                                    strokeWidth="1"
+                                    opacity="0.5"
+                                />
+                            )}
+                        </>
+                    )}
+
+                    {/* Selection Box */}
+                    {isDrawing && drawingState.tool === ToolType.TRANSFORM && selectionStart && selectionEnd && (
+                         <rect 
+                            x={Math.min(selectionStart.x, selectionEnd.x) / (layerCanvasRefs.current.get(activeLayerId)?.width || 1024) * 100 + '%'}
+                            y={Math.min(selectionStart.y, selectionEnd.y) / (layerCanvasRefs.current.get(activeLayerId)?.height || 1024) * 100 + '%'}
+                            width={Math.abs(selectionEnd.x - selectionStart.x) / (layerCanvasRefs.current.get(activeLayerId)?.width || 1024) * 100 + '%'}
+                            height={Math.abs(selectionEnd.y - selectionStart.y) / (layerCanvasRefs.current.get(activeLayerId)?.height || 1024) * 100 + '%'}
+                            fill="rgba(59, 130, 246, 0.1)"
+                            stroke="#3b82f6"
+                            strokeWidth="1"
+                            strokeDasharray="4,4"
+                            vectorEffect="non-scaling-stroke"
+                         />
+                    )}
+                </svg>
             </div>
         </div>
 

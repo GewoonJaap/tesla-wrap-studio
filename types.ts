@@ -21,7 +21,8 @@ export enum ToolType {
   BRUSH = 'BRUSH',
   ERASER = 'ERASER',
   FILL = 'FILL',
-  GRADIENT = 'GRADIENT'
+  GRADIENT = 'GRADIENT',
+  TRANSFORM = 'TRANSFORM'
 }
 
 export interface DrawingState {

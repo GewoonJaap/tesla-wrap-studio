@@ -17,7 +17,8 @@ import {
   Trash2,
   MoveDiagonal,
   Circle,
-  ArrowRight
+  ArrowRight,
+  Scissors
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -342,7 +343,7 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
           {/* Tool Selection */}
           <div>
             <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Tools</h3>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => onChange({ tool: ToolType.BRUSH })}
                 className={`p-3 rounded-lg flex flex-col items-center gap-2 transition-all border ${
@@ -376,6 +377,17 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
                 <MoveDiagonal className="w-5 h-5" />
                 <span className="text-[10px]">Gradient</span>
               </button>
+              <button
+                onClick={() => onChange({ tool: ToolType.TRANSFORM })}
+                className={`p-3 rounded-lg flex flex-col items-center gap-2 transition-all border ${
+                  state.tool === ToolType.TRANSFORM 
+                    ? 'bg-zinc-800 border-white/20 text-white shadow-lg' 
+                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                }`}
+              >
+                <Scissors className="w-5 h-5" />
+                <span className="text-[10px]">Select</span>
+              </button>
             </div>
           </div>
 
@@ -405,7 +417,7 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
           )}
 
           {/* Brush Settings */}
-          {state.tool !== ToolType.GRADIENT && (
+          {(state.tool === ToolType.BRUSH || state.tool === ToolType.ERASER) && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Size</h3>
@@ -420,6 +432,18 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
                 className="w-full accent-white h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer hover:bg-zinc-700 transition-colors"
               />
             </div>
+          )}
+          
+          {/* Transform Settings info */}
+          {state.tool === ToolType.TRANSFORM && (
+             <div className="bg-zinc-950/50 p-3 rounded-lg border border-zinc-800 text-xs text-zinc-400 animate-in slide-in-from-left-4">
+                <p className="mb-2"><strong>Mode: Cut & Transform</strong></p>
+                <ul className="list-disc pl-4 space-y-1">
+                  <li>Draw a box to select an area.</li>
+                  <li>Release to cut and float the selection.</li>
+                  <li>Drag to move, corners to scale.</li>
+                </ul>
+             </div>
           )}
 
           <div className="space-y-4">
