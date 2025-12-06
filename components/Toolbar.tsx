@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CarModel, DrawingState, ToolType } from '../types';
 import { PRESET_COLORS, GITHUB_BASE_URL } from '../constants';
 import { generateTexture } from '../services/geminiService';
@@ -12,7 +12,9 @@ import {
   Image as ImageIcon,
   Key,
   X,
-  ExternalLink
+  ExternalLink,
+  Upload,
+  Trash2
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -28,17 +30,48 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [customReference, setCustomReference] = useState<string | null>(null);
   
   // API Key State
   const [apiKey, setApiKey] = useState<string>('');
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [tempKey, setTempKey] = useState('');
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     const storedKey = localStorage.getItem('gemini_api_key');
     if (storedKey) {
       setApiKey(storedKey);
     }
+  }, []);
+
+  // Handle Paste Events for Images
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const blob = items[i].getAsFile();
+          if (blob) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              if (typeof event.target?.result === 'string') {
+                setCustomReference(event.target.result);
+              }
+            };
+            reader.readAsDataURL(blob);
+            e.preventDefault(); 
+          }
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
   }, []);
 
   const handleGenerate = async () => {
@@ -51,14 +84,13 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
 
     setIsGenerating(true);
     try {
-      // Get current canvas state to use as reference
-      const canvasData = getCanvasData();
-      const textureUrl = await generateTexture(prompt, apiKey, canvasData);
+      // Prioritize custom uploaded reference, fallback to current canvas state
+      const referenceData = customReference || getCanvasData();
+      const textureUrl = await generateTexture(prompt, apiKey, referenceData);
       onApplyTexture(textureUrl);
     } catch (e) {
       console.error(e);
       alert('Failed to generate texture. Please check your API key and try again.');
-      // Optionally open the modal again if the key was invalid
       if ((e as any).toString().includes('400') || (e as any).toString().includes('403')) {
         setShowKeyModal(true);
       }
@@ -79,6 +111,35 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
   const handleApplyExample = (filename: string) => {
     const url = `${GITHUB_BASE_URL}/${selectedModel.folderName}/example/${filename}`;
     onApplyTexture(url);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (typeof event.target?.result === 'string') {
+          setCustomReference(event.target.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (typeof event.target?.result === 'string') {
+          setCustomReference(event.target.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   return (
@@ -103,14 +164,56 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
               <Key className="w-4 h-4" />
             </button>
           </div>
+          
           <div className="space-y-3">
+            {/* Image Upload Area */}
+            <div 
+              className={`relative border border-dashed rounded-lg transition-all overflow-hidden group ${customReference ? 'border-purple-500/50' : 'border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800/30'}`}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleDrop}
+            >
+              {customReference ? (
+                <div className="relative aspect-video w-full bg-zinc-950">
+                   <img src={customReference} alt="Reference" className="w-full h-full object-contain" />
+                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                     <button 
+                        onClick={() => setCustomReference(null)}
+                        className="p-2 bg-red-500/80 text-white rounded-full hover:bg-red-600 transition-colors"
+                        title="Remove image"
+                     >
+                       <Trash2 className="w-4 h-4" />
+                     </button>
+                   </div>
+                </div>
+              ) : (
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-4 flex flex-col items-center justify-center gap-2 cursor-pointer py-6"
+                >
+                  <Upload className="w-6 h-6 text-zinc-500" />
+                  <div className="text-center">
+                    <p className="text-xs font-medium text-zinc-300">Input Image (Optional)</p>
+                    <p className="text-[10px] text-zinc-500 mt-1">Click, drop, or paste (Ctrl+V)</p>
+                  </div>
+                </div>
+              )}
+              <input 
+                ref={fileInputRef}
+                type="file" 
+                accept="image/*" 
+                onChange={handleFileSelect} 
+                className="hidden" 
+              />
+            </div>
+
             <textarea 
               className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-3 text-sm text-white resize-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500 outline-none placeholder:text-zinc-600 transition-all"
               rows={3}
-              placeholder="E.g., Carbon fiber pattern with red stripes..."
+              placeholder="Describe the new style (e.g., 'Neon cyberpunk grid', 'Rusty metal')..."
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
             />
+            
             <button
               onClick={handleGenerate}
               disabled={isGenerating || !prompt}
