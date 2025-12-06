@@ -37,6 +37,10 @@ const Editor: React.FC<EditorProps> = ({
   const [isDrawing, setIsDrawing] = useState(false);
   const [lastPoint, setLastPoint] = useState<Point | null>(null);
 
+  // Gradient State
+  const [gradientStart, setGradientStart] = useState<Point | null>(null);
+  const [currentDrag, setCurrentDrag] = useState<Point | null>(null);
+
   // Texture Alignment State
   const [pendingTexture, setPendingTexture] = useState<string | null>(null);
   const [transform, setTransform] = useState<TransformState>({ x: 0, y: 0, scaleX: 1, scaleY: 1 });
@@ -163,21 +167,39 @@ const Editor: React.FC<EditorProps> = ({
   const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
     if (pendingTexture) return; // Disable drawing while aligning
     e.preventDefault(); 
-    setIsDrawing(true);
+    
     const point = getPoint(e);
-    setLastPoint(point);
+    if (!point) return;
+
+    setIsDrawing(true);
+
+    if (drawingState.tool === ToolType.GRADIENT) {
+      setGradientStart(point);
+      setCurrentDrag(point);
+    } else {
+      setLastPoint(point);
+    }
   };
 
   const draw = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawing || !lastPoint || pendingTexture) return;
+    if (!isDrawing || pendingTexture) return;
     e.preventDefault();
-
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx) return;
 
     const currentPoint = getPoint(e);
     if (!currentPoint) return;
+
+    if (drawingState.tool === ToolType.GRADIENT) {
+      // Just update drag state for visual feedback
+      setCurrentDrag(currentPoint);
+      return;
+    }
+
+    // Brush / Eraser Logic
+    if (!lastPoint) return;
+    
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
 
     ctx.beginPath();
     ctx.moveTo(lastPoint.x, lastPoint.y);
@@ -199,9 +221,49 @@ const Editor: React.FC<EditorProps> = ({
     setLastPoint(currentPoint);
   };
 
-  const stopDrawing = () => {
+  const stopDrawing = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDrawing) return;
+
+    // Apply Gradient on Mouse Up
+    if (drawingState.tool === ToolType.GRADIENT && gradientStart && currentDrag) {
+      const canvas = canvasRef.current;
+      const ctx = canvas?.getContext('2d');
+      if (canvas && ctx) {
+        // Use current drag point from event if possible, otherwise state
+        // For simpler logic, state is fine as mousemove updates it
+        const start = gradientStart;
+        const end = currentDrag;
+
+        const prevComposite = ctx.globalCompositeOperation;
+        const prevAlpha = ctx.globalAlpha;
+        
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = drawingState.opacity;
+
+        let gradient;
+        if (drawingState.gradientType === 'linear') {
+          gradient = ctx.createLinearGradient(start.x, start.y, end.x, end.y);
+        } else {
+          const r = Math.hypot(end.x - start.x, end.y - start.y);
+          gradient = ctx.createRadialGradient(start.x, start.y, 0, start.x, start.y, r);
+        }
+
+        gradient.addColorStop(0, drawingState.color);
+        gradient.addColorStop(1, drawingState.secondaryColor);
+
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Restore context
+        ctx.globalCompositeOperation = prevComposite;
+        ctx.globalAlpha = prevAlpha;
+      }
+    }
+
     setIsDrawing(false);
     setLastPoint(null);
+    setGradientStart(null);
+    setCurrentDrag(null);
   };
 
   return (
@@ -390,6 +452,38 @@ const Editor: React.FC<EditorProps> = ({
           onTouchEnd={stopDrawing}
           className="block w-full h-full cursor-crosshair bg-white"
         />
+        
+        {/* Gradient Preview Line */}
+        {isDrawing && drawingState.tool === ToolType.GRADIENT && gradientStart && currentDrag && (
+          <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
+            <defs>
+              <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
+              </marker>
+            </defs>
+            <line 
+              x1={gradientStart.x / (canvasRef.current?.width || 1) * 100 + '%'} 
+              y1={gradientStart.y / (canvasRef.current?.height || 1) * 100 + '%'} 
+              x2={currentDrag.x / (canvasRef.current?.width || 1) * 100 + '%'} 
+              y2={currentDrag.y / (canvasRef.current?.height || 1) * 100 + '%'} 
+              stroke="#3b82f6" 
+              strokeWidth="2"
+              strokeDasharray="5,5"
+              markerEnd="url(#arrowhead)"
+            />
+            {drawingState.gradientType === 'radial' && (
+               <circle 
+                 cx={gradientStart.x / (canvasRef.current?.width || 1) * 100 + '%'}
+                 cy={gradientStart.y / (canvasRef.current?.height || 1) * 100 + '%'}
+                 r={Math.hypot(currentDrag.x - gradientStart.x, currentDrag.y - gradientStart.y) / (canvasRef.current?.width || 1) * 100 + '%'}
+                 fill="none"
+                 stroke="#3b82f6"
+                 strokeWidth="1"
+                 opacity="0.5"
+               />
+            )}
+          </svg>
+        )}
 
         {/* Pending Texture Preview Layer - Rendered BETWEEN Canvas and Wireframe */}
         {pendingTexture && (

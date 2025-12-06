@@ -14,7 +14,10 @@ import {
   X,
   ExternalLink,
   Upload,
-  Trash2
+  Trash2,
+  MoveDiagonal,
+  Circle,
+  ArrowRight
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -30,6 +33,7 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showSecondaryColorPicker, setShowSecondaryColorPicker] = useState(false);
   const [customReference, setCustomReference] = useState<string | null>(null);
   
   // API Key State
@@ -338,7 +342,7 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
           {/* Tool Selection */}
           <div>
             <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Tools</h3>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => onChange({ tool: ToolType.BRUSH })}
                 className={`p-3 rounded-lg flex flex-col items-center gap-2 transition-all border ${
@@ -348,7 +352,7 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
                 }`}
               >
                 <Brush className="w-5 h-5" />
-                <span className="text-xs">Brush</span>
+                <span className="text-[10px]">Brush</span>
               </button>
               <button
                 onClick={() => onChange({ tool: ToolType.ERASER })}
@@ -359,26 +363,64 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
                 }`}
               >
                 <Eraser className="w-5 h-5" />
-                <span className="text-xs">Eraser</span>
+                <span className="text-[10px]">Eraser</span>
+              </button>
+              <button
+                onClick={() => onChange({ tool: ToolType.GRADIENT })}
+                className={`p-3 rounded-lg flex flex-col items-center gap-2 transition-all border ${
+                  state.tool === ToolType.GRADIENT 
+                    ? 'bg-zinc-800 border-white/20 text-white shadow-lg' 
+                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                }`}
+              >
+                <MoveDiagonal className="w-5 h-5" />
+                <span className="text-[10px]">Gradient</span>
               </button>
             </div>
           </div>
 
+          {/* Gradient Settings */}
+          {state.tool === ToolType.GRADIENT && (
+             <div className="space-y-4 animate-in slide-in-from-left-4">
+                <div className="flex justify-between items-center">
+                   <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Type</h3>
+                   <div className="flex bg-zinc-800 rounded-lg p-1 gap-1">
+                      <button 
+                        onClick={() => onChange({ gradientType: 'linear' })}
+                        className={`p-1.5 rounded ${state.gradientType === 'linear' ? 'bg-zinc-600 text-white' : 'text-zinc-400 hover:text-white'}`}
+                        title="Linear Gradient"
+                      >
+                         <ArrowRight className="w-4 h-4"/>
+                      </button>
+                      <button 
+                        onClick={() => onChange({ gradientType: 'radial' })}
+                        className={`p-1.5 rounded ${state.gradientType === 'radial' ? 'bg-zinc-600 text-white' : 'text-zinc-400 hover:text-white'}`}
+                        title="Radial Gradient"
+                      >
+                         <Circle className="w-4 h-4"/>
+                      </button>
+                   </div>
+                </div>
+             </div>
+          )}
+
           {/* Brush Settings */}
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Size</h3>
-              <span className="text-xs text-zinc-400 font-mono">{state.brushSize}px</span>
+          {state.tool !== ToolType.GRADIENT && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Size</h3>
+                <span className="text-xs text-zinc-400 font-mono">{state.brushSize}px</span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max="100"
+                value={state.brushSize}
+                onChange={(e) => onChange({ brushSize: parseInt(e.target.value) })}
+                className="w-full accent-white h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer hover:bg-zinc-700 transition-colors"
+              />
             </div>
-            <input
-              type="range"
-              min="1"
-              max="100"
-              value={state.brushSize}
-              onChange={(e) => onChange({ brushSize: parseInt(e.target.value) })}
-              className="w-full accent-white h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer hover:bg-zinc-700 transition-colors"
-            />
-          </div>
+          )}
 
           <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -396,10 +438,12 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
             />
           </div>
 
-          {/* Color Picker */}
+          {/* Color Picker (Primary) */}
           <div>
             <div className="flex justify-between items-center mb-3">
-              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Color</h3>
+              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                {state.tool === ToolType.GRADIENT ? 'Start Color' : 'Color'}
+              </h3>
               <button 
                   onClick={() => setShowColorPicker(!showColorPicker)}
                   className={`text-xs flex items-center gap-1 transition-colors ${showColorPicker ? 'text-white' : 'text-zinc-400 hover:text-white'}`}
@@ -412,7 +456,7 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
               {PRESET_COLORS.slice(0, 10).map((color) => (
                 <button
                   key={color}
-                  onClick={() => onChange({ color, tool: ToolType.BRUSH })}
+                  onClick={() => onChange({ color })}
                   className={`w-full aspect-square rounded-full border-2 transition-all ${
                     state.color === color && state.tool !== ToolType.ERASER ? 'border-white scale-110 shadow-lg' : 'border-transparent hover:scale-110 hover:border-zinc-600'
                   }`}
@@ -431,28 +475,71 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
                      <input 
                         type="text" 
                         value={state.color}
-                        onChange={(e) => onChange({ color: e.target.value, tool: ToolType.BRUSH })}
+                        onChange={(e) => onChange({ color: e.target.value })}
                         className="flex-1 bg-zinc-950 border border-zinc-700 rounded px-3 text-sm font-mono text-zinc-300 focus:border-white outline-none"
                      />
                      <input 
                         type="color" 
                         value={state.color}
-                        onChange={(e) => onChange({ color: e.target.value, tool: ToolType.BRUSH })}
+                        onChange={(e) => onChange({ color: e.target.value })}
                         className="w-10 h-10 bg-transparent rounded cursor-pointer opacity-0 absolute"
                      />
-                     <div className="relative">
-                        <Palette className="w-5 h-5 text-zinc-400 absolute top-2.5 right-2.5 pointer-events-none" />
-                        <input 
-                          type="color" 
-                          value={state.color}
-                          onChange={(e) => onChange({ color: e.target.value, tool: ToolType.BRUSH })}
-                          className="w-10 h-10 opacity-0 cursor-pointer"
-                        />
-                     </div>
                    </div>
                </div>
             )}
           </div>
+
+          {/* Color Picker (Secondary - For Gradient) */}
+          {state.tool === ToolType.GRADIENT && (
+            <div className="animate-in slide-in-from-left-4">
+              <div className="flex justify-between items-center mb-3 pt-4 border-t border-zinc-800">
+                <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">End Color</h3>
+                <button 
+                    onClick={() => setShowSecondaryColorPicker(!showSecondaryColorPicker)}
+                    className={`text-xs flex items-center gap-1 transition-colors ${showSecondaryColorPicker ? 'text-white' : 'text-zinc-400 hover:text-white'}`}
+                >
+                    <Palette className="w-3 h-3" /> Custom
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-5 gap-2 mb-3">
+                {PRESET_COLORS.slice(0, 10).map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => onChange({ secondaryColor: color })}
+                    className={`w-full aspect-square rounded-full border-2 transition-all ${
+                      state.secondaryColor === color ? 'border-white scale-110 shadow-lg' : 'border-transparent hover:scale-110 hover:border-zinc-600'
+                    }`}
+                    style={{ backgroundColor: color }}
+                    title={color}
+                  />
+                ))}
+              </div>
+              {showSecondaryColorPicker && (
+                <div className="pt-3 border-t border-zinc-800 mt-2 animate-in slide-in-from-top-2">
+                    <div className="flex gap-2">
+                      <div 
+                          className="w-10 h-10 rounded border border-zinc-700"
+                          style={{ backgroundColor: state.secondaryColor }}
+                      />
+                      <input 
+                          type="text" 
+                          value={state.secondaryColor}
+                          onChange={(e) => onChange({ secondaryColor: e.target.value })}
+                          className="flex-1 bg-zinc-950 border border-zinc-700 rounded px-3 text-sm font-mono text-zinc-300 focus:border-white outline-none"
+                      />
+                      <input 
+                          type="color" 
+                          value={state.secondaryColor}
+                          onChange={(e) => onChange({ secondaryColor: e.target.value })}
+                          className="w-10 h-10 bg-transparent rounded cursor-pointer opacity-0 absolute"
+                      />
+                    </div>
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
 
         {/* Actions */}

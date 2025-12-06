@@ -13,11 +13,14 @@ export interface Point {
 export enum ToolType {
   BRUSH = 'BRUSH',
   ERASER = 'ERASER',
-  FILL = 'FILL'
+  FILL = 'FILL',
+  GRADIENT = 'GRADIENT'
 }
 
 export interface DrawingState {
   color: string;
+  secondaryColor: string;
+  gradientType: 'linear' | 'radial';
   brushSize: number;
   tool: ToolType;
   opacity: number;

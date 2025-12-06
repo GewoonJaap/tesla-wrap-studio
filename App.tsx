@@ -9,6 +9,8 @@ const App: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState<CarModel>(CAR_MODELS[0]);
   const [drawingState, setDrawingState] = useState<DrawingState>({
     color: '#FF0000',
+    secondaryColor: '#0000FF',
+    gradientType: 'linear',
     brushSize: 10,
     tool: ToolType.BRUSH,
     opacity: 1,
