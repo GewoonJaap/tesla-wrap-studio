@@ -3,7 +3,7 @@ import Header from './components/Header';
 import Toolbar from './components/Toolbar';
 import Editor from './components/Editor';
 import { CAR_MODELS } from './constants';
-import { CarModel, DrawingState, ToolType } from './types';
+import { CarModel, DrawingState, ToolType, EditorHandle } from './types';
 
 const App: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState<CarModel>(CAR_MODELS[0]);
@@ -17,22 +17,21 @@ const App: React.FC = () => {
   });
   const [textureToApply, setTextureToApply] = useState<string | null>(null);
 
-  // Function ref to get data from Editor (since we now have multiple layers)
-  const getCompositeDataRef = useRef<() => string | undefined>(() => undefined);
+  // Ref to access editor methods
+  const editorRef = useRef<EditorHandle>(null);
 
   const handleStateChange = (updates: Partial<DrawingState>) => {
     setDrawingState(prev => ({ ...prev, ...updates }));
   };
 
   const handleClearCanvas = useCallback(() => {
-     // A full clear is now a reload to reset the complexity of layers
-     if (window.confirm("This will reset all layers and clear the workspace. Continue?")) {
-         window.location.reload(); 
+     if (window.confirm("Are you sure you want to clear the active layer?")) {
+         editorRef.current?.clearLayer();
      }
   }, []);
 
   const handleDownload = useCallback(() => {
-    const dataUrl = getCompositeDataRef.current();
+    const dataUrl = editorRef.current?.getCompositeData();
     if (!dataUrl) {
         alert("Canvas not ready");
         return;
@@ -57,7 +56,8 @@ const App: React.FC = () => {
 
   // Wrapper for Toolbar to get data (passed to AI for context)
   const getCanvasData = useCallback((): string | undefined => {
-    return getCompositeDataRef.current();
+    // Use the ref directly instead of a separate callback ref
+    return editorRef.current?.getCompositeData();
   }, []);
 
   return (
@@ -79,11 +79,11 @@ const App: React.FC = () => {
         />
         
         <Editor 
+          ref={editorRef}
           model={selectedModel}
           drawingState={drawingState}
           textureToApply={textureToApply}
           onTextureApplied={handleTextureApplied}
-          onCompositeRequest={(fn) => { getCompositeDataRef.current = fn; }}
         />
       </main>
     </div>

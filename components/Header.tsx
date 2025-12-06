@@ -119,7 +119,7 @@ const Header: React.FC<HeaderProps> = ({ selectedModel, onSelectModel, onDownloa
 
               <section className="space-y-3">
                 <h3 className="text-white font-semibold text-base">2. Export & Save</h3>
-                <p>Click <strong className="text-white">Export Wrap</strong> to download your design as a PNG file. The file is automatically sized correctly (1024x1024) for your Tesla.</p>
+                <p>Click <strong className="text-white">Export Wrap</strong> to download your design as a PNG file. The file is automatically sized correctly for your Tesla based on the model template (usually 1024x1024 or higher).</p>
               </section>
 
               <section className="space-y-3">
@@ -160,7 +160,7 @@ const Header: React.FC<HeaderProps> = ({ selectedModel, onSelectModel, onDownloa
                 <ul className="grid grid-cols-2 gap-2">
                   <li>• Format: PNG</li>
                   <li>• Size: Max 1 MB</li>
-                  <li>• Resolution: 1024x1024 (Automatic)</li>
+                  <li>• Resolution: Matches Template (1:1)</li>
                   <li>• No map/firmware files on USB</li>
                 </ul>
               </div>

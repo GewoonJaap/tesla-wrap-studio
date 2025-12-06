@@ -27,6 +27,9 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   
+  // Canvas Dimensions State (Dynamic based on template)
+  const [canvasSize, setCanvasSize] = useState({ width: 1024, height: 1024 });
+
   // Layer Management
   const [layers, setLayers] = useState<Layer[]>([
     { id: 'layer-1', name: 'Background', visible: true, opacity: 1 }
@@ -85,10 +88,10 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
     },
     getCompositeData: () => {
       if (!templateImgRef.current) return undefined;
-      
+
       const canvas = document.createElement('canvas');
-      canvas.width = templateImgRef.current.naturalWidth;
-      canvas.height = templateImgRef.current.naturalHeight;
+      canvas.width = canvasSize.width;
+      canvas.height = canvasSize.height;
       const ctx = canvas.getContext('2d');
       if (!ctx) return undefined;
 
@@ -102,14 +105,14 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
               const layerCanvas = layerCanvasRefs.current.get(layer.id);
               if (layerCanvas) {
                   ctx.globalAlpha = layer.opacity;
-                  ctx.drawImage(layerCanvas, 0, 0);
+                  ctx.drawImage(layerCanvas, 0, 0, canvasSize.width, canvasSize.height);
               }
           }
       });
 
       return canvas.toDataURL('image/png');
     }
-  }), [layers, activeLayerId]);
+  }), [layers, activeLayerId, canvasSize]);
 
   // --- Layer Operations ---
 
@@ -174,6 +177,11 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
     
     img.onload = () => {
       templateImgRef.current = img;
+      // Set dimensions dynamically based on template (Best results)
+      setCanvasSize({
+        width: img.naturalWidth || 1024,
+        height: img.naturalHeight || 1024
+      });
       setIsTemplateLoaded(true);
       // Force update to ensure canvases get sized
       setLayers(prev => [...prev]);
@@ -197,11 +205,10 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
 
   // Helper: Init a specific layer canvas
   const initLayerCanvas = (canvas: HTMLCanvasElement, isBackground: boolean) => {
-    if (!templateImgRef.current) return;
-    
-    if (canvas.width !== templateImgRef.current.naturalWidth || canvas.height !== templateImgRef.current.naturalHeight) {
-        canvas.width = templateImgRef.current.naturalWidth;
-        canvas.height = templateImgRef.current.naturalHeight;
+    // Dynamic Resolution
+    if (canvas.width !== canvasSize.width || canvas.height !== canvasSize.height) {
+        canvas.width = canvasSize.width;
+        canvas.height = canvasSize.height;
         
         if (isBackground) {
              const ctx = canvas.getContext('2d');
@@ -237,9 +244,6 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
       const centerX = (canvas.width / 2) + shiftX;
       const centerY = (canvas.height / 2) + shiftY;
 
-      // Calculate the target dimensions based on scale (normalized 0-1 relative to canvas)
-      // Since our preview is always w-full h-full (scaling with transform), 
-      // scaleX=1 means width=CanvasWidth.
       const targetW = canvas.width * transform.scaleX;
       const targetH = canvas.height * transform.scaleY;
 
@@ -250,7 +254,6 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
       ctx.translate(centerX, centerY);
       ctx.rotate((transform.rotation * Math.PI) / 180);
       
-      // Draw image to fill the target rect
       ctx.drawImage(img, -targetW / 2, -targetH / 2, targetW, targetH);
       
       ctx.restore();
@@ -634,12 +637,14 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
                 onTouchEnd={stopDrawing}
                 className={`relative shadow-2xl transition-all duration-500 ease-out ring-1 ring-zinc-800 ${isTemplateLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
                 style={{ 
+                width: '100%', 
+                aspectRatio: `${canvasSize.width} / ${canvasSize.height}`,
                 maxWidth: '100%', 
                 maxHeight: '100%',
                 cursor: drawingState.tool === ToolType.GRADIENT || drawingState.tool === ToolType.TRANSFORM ? 'crosshair' : 'default'
                 }}
             >
-                {/* Ghost Image */}
+                {/* Ghost Image for Layout */}
                 {isTemplateLoaded && (
                     <img 
                         src={templateUrl} 
@@ -669,7 +674,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
                     />
                 ))}
 
-                {/* Pending Texture Preview & Interactive Gizmo */}
+                {/* Pending Texture Preview & Gizmo */}
                 {pendingTexture && (
                     <>
                         <img 
@@ -721,7 +726,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
                     <img 
                         src={templateUrl} 
                         alt="Template"
-                        className="absolute inset-0 w-full h-full object-contain pointer-events-none opacity-60 mix-blend-multiply select-none" 
+                        className="absolute inset-0 w-full h-full object-fill pointer-events-none opacity-60 mix-blend-multiply select-none" 
                     />
                 )}
 
@@ -750,10 +755,10 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
                     {/* Selection Box */}
                     {isDrawing && drawingState.tool === ToolType.TRANSFORM && selectionStart && selectionEnd && (
                          <rect 
-                            x={Math.min(selectionStart.x, selectionEnd.x) / (layerCanvasRefs.current.get(activeLayerId)?.width || 1024) * 100 + '%'}
-                            y={Math.min(selectionStart.y, selectionEnd.y) / (layerCanvasRefs.current.get(activeLayerId)?.height || 1024) * 100 + '%'}
-                            width={Math.abs(selectionEnd.x - selectionStart.x) / (layerCanvasRefs.current.get(activeLayerId)?.width || 1024) * 100 + '%'}
-                            height={Math.abs(selectionEnd.y - selectionStart.y) / (layerCanvasRefs.current.get(activeLayerId)?.height || 1024) * 100 + '%'}
+                            x={Math.min(selectionStart.x, selectionEnd.x) / (layerCanvasRefs.current.get(activeLayerId)?.width || canvasSize.width) * 100 + '%'}
+                            y={Math.min(selectionStart.y, selectionEnd.y) / (layerCanvasRefs.current.get(activeLayerId)?.height || canvasSize.height) * 100 + '%'}
+                            width={Math.abs(selectionEnd.x - selectionStart.x) / (layerCanvasRefs.current.get(activeLayerId)?.width || canvasSize.width) * 100 + '%'}
+                            height={Math.abs(selectionEnd.y - selectionStart.y) / (layerCanvasRefs.current.get(activeLayerId)?.height || canvasSize.height) * 100 + '%'}
                             fill="rgba(59, 130, 246, 0.1)"
                             stroke="#3b82f6"
                             strokeWidth="1"

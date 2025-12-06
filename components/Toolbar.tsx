@@ -104,6 +104,7 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
            return;
         }
         if (imagesLoaded === 2) {
+          // Use template's natural size for best results (1:1 typically)
           canvas.width = templateImg.naturalWidth || 1024;
           canvas.height = templateImg.naturalHeight || 1024;
           ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);

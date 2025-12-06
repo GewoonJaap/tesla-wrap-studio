@@ -72,7 +72,7 @@ const LayerPanel: React.FC<LayerPanelProps> = ({
             <h3 className="text-xs font-bold text-zinc-100 uppercase tracking-wider">Layers</h3>
         </div>
         <button
-          onClick={onAddLayer}
+          onClick={() => onAddLayer()}
           className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-md transition-colors text-zinc-300 hover:text-white"
           title="New Layer"
         >
