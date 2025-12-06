@@ -23,7 +23,7 @@ export const generateTexture = async (prompt: string, apiKey: string): Promise<s
       config: {
         imageConfig: {
           aspectRatio: "1:1",
-          imageSize: "1K"
+          // imageSize is only supported by gemini-3-pro-image-preview, not 2.5-flash-image
         }
       }
     });
