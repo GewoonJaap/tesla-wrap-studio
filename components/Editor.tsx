@@ -104,6 +104,10 @@ const Editor: React.FC<EditorProps> = ({
     setLayers(prev => prev.map(l => l.id === id ? { ...l, opacity } : l));
   };
 
+  const renameLayer = (id: string, name: string) => {
+    setLayers(prev => prev.map(l => l.id === id ? { ...l, name } : l));
+  };
+
   // --- Lifecycle & Initialization ---
 
   // Initialize Template
@@ -589,6 +593,7 @@ const Editor: React.FC<EditorProps> = ({
             onRemoveLayer={removeLayer}
             onMoveLayer={moveLayer}
             onUpdateOpacity={updateOpacity}
+            onRenameLayer={renameLayer}
         />
     </div>
   );
