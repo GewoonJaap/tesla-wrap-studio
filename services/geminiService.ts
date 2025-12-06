@@ -1,11 +1,11 @@
 import { GoogleGenAI } from "@google/genai";
 
-export const generateTexture = async (prompt: string): Promise<string> => {
-  if (!process.env.API_KEY) {
-    throw new Error("API Key is missing. Please set the API_KEY environment variable.");
+export const generateTexture = async (prompt: string, apiKey: string): Promise<string> => {
+  if (!apiKey) {
+    throw new Error("API Key is missing.");
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey });
   
   // Using gemini-2.5-flash-image for image generation as requested
   const model = 'gemini-2.5-flash-image';
