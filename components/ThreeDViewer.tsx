@@ -64,10 +64,8 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ model, textureData, onClose
   }, [textureData]);
 
   // Construct raw GitHub URL for OBJ
-  const modelUrl = `https://raw.githubusercontent.com/GewoonJaap/custom-tesla-wraps/master/${model.folderName}/${model.id === 'cybertruck' ? 'cybertruck.obj' : 'model.obj'}`;
-
-  // Fallback for models that don't have an OBJ yet (Prompt only gave Cybertruck)
-  const isSupported = model.id === 'cybertruck'; 
+  // Changed to vehicle.obj as per update for all models
+  const modelUrl = `https://raw.githubusercontent.com/GewoonJaap/custom-tesla-wraps/master/${model.folderName}/vehicle.obj`;
 
   return (
     <div className="fixed inset-0 z-[60] bg-zinc-950 flex flex-col animate-in fade-in duration-300">
@@ -87,7 +85,7 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ model, textureData, onClose
         </button>
       </div>
 
-      {isSupported && textureMap ? (
+      {textureMap ? (
         <div className="w-full h-full">
             <Canvas shadows camera={{ position: [5, 2, 5], fov: 45 }}>
                 <Suspense fallback={<Loader />}>
@@ -107,12 +105,8 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ model, textureData, onClose
       ) : (
         <div className="w-full h-full flex flex-col items-center justify-center text-zinc-500 gap-4">
             <div className="p-4 bg-zinc-900 rounded-xl border border-zinc-800 text-center max-w-md">
-                <p className="text-lg text-white mb-2">3D Model Not Available</p>
-                <p>
-                    Currently, 3D preview is optimized for the <strong>Cybertruck</strong>. 
-                    <br/>
-                    Support for {model.name} is coming soon!
-                </p>
+                <Loader2 className="w-8 h-8 animate-spin text-purple-500 mx-auto mb-2" />
+                <p>Loading texture...</p>
             </div>
         </div>
       )}
