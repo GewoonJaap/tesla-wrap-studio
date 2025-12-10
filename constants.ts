@@ -24,8 +24,8 @@ const STANDARD_EXAMPLES = [
 
 export const CAR_MODELS: CarModel[] = [
   { id: 'cybertruck', name: 'Cybertruck', folderName: 'cybertruck', examples: CYBERTRUCK_EXAMPLES },
-  { id: 'model3-2024-perf', name: 'Model 3 Highland (Performance)', folderName: 'model3-2024-performance', examples: STANDARD_EXAMPLES },
-  { id: 'model3-2024-base', name: 'Model 3 Highland (Base)', folderName: 'model3-2024-base', examples: STANDARD_EXAMPLES },
+  { id: 'model3-2024-perf', name: 'Model 3 (2024 Performance)', folderName: 'model3-2024-performance', examples: STANDARD_EXAMPLES },
+  { id: 'model3-2024-base', name: 'Model 3 (2024 Base)', folderName: 'model3-2024-base', examples: STANDARD_EXAMPLES },
   { id: 'model3', name: 'Model 3 Highland', folderName: 'model3', examples: STANDARD_EXAMPLES },
   { id: 'modely-2025-base', name: 'Model Y (2025 Base)', folderName: 'modely-2025-base', examples: STANDARD_EXAMPLES },
   { id: 'modely-2025-perf', name: 'Model Y (2025 Performance)', folderName: 'modely-2025-performance', examples: STANDARD_EXAMPLES },
