@@ -26,9 +26,11 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
   onTextureApplied
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   
   // Canvas Dimensions State (Dynamic based on template)
   const [canvasSize, setCanvasSize] = useState({ width: 1024, height: 1024 });
+  const [layoutDims, setLayoutDims] = useState({ width: 0, height: 0 });
 
   // Layer Management
   const [layers, setLayers] = useState<Layer[]>([
@@ -116,6 +118,39 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
       return canvas.toDataURL('image/png');
     }
   }), [layers, activeLayerId, canvasSize]);
+
+  // --- Layout Observer for strict Aspect Ratio ---
+  useEffect(() => {
+    if (!wrapperRef.current) return;
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+
+      const { width, height } = entry.contentRect;
+      if (width === 0 || height === 0) return;
+
+      const aspectRatio = canvasSize.width / canvasSize.height;
+      let newWidth, newHeight;
+
+      // Calculate 'object-fit: contain' dimensions manually
+      if (width / height > aspectRatio) {
+        // Parent is wider than needed, constrain by height
+        newHeight = height;
+        newWidth = newHeight * aspectRatio;
+      } else {
+        // Parent is taller than needed, constrain by width
+        newWidth = width;
+        newHeight = newWidth / aspectRatio;
+      }
+
+      setLayoutDims({ width: newWidth, height: newHeight });
+    });
+
+    observer.observe(wrapperRef.current);
+    return () => observer.disconnect();
+  }, [canvasSize]);
+
 
   // --- Layer Operations ---
 
@@ -572,7 +607,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
   return (
     <div className="flex-1 flex overflow-hidden">
         {/* Workspace Center */}
-        <div className="flex-1 bg-zinc-950/50 relative overflow-hidden flex items-center justify-center p-8 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-zinc-900 to-zinc-950 select-none">
+        <div ref={wrapperRef} className="flex-1 bg-zinc-950/50 relative overflow-hidden flex items-center justify-center p-8 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-zinc-900 to-zinc-950 select-none">
         
             {/* View Toggle */}
             <div className="absolute top-4 right-4 z-10">
@@ -609,9 +644,9 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
 
             {/* Loading/Error States */}
             {!isTemplateLoaded && !templateError && (
-                <div className="flex flex-col items-center gap-3 text-zinc-400">
-                <Loader2 className="w-8 h-8 animate-spin text-red-500" />
-                <p className="animate-pulse">Loading template...</p>
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-zinc-400 z-0">
+                    <Loader2 className="w-8 h-8 animate-spin text-red-500" />
+                    <p className="animate-pulse">Loading template...</p>
                 </div>
             )}
 
@@ -713,23 +748,13 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
                 onTouchEnd={stopDrawing}
                 className={`relative shadow-2xl transition-all duration-500 ease-out ring-1 ring-zinc-800 ${isTemplateLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
                 style={{ 
-                width: '100%', 
-                aspectRatio: `${canvasSize.width} / ${canvasSize.height}`,
-                maxWidth: '100%', 
-                maxHeight: '100%',
-                cursor: drawingState.tool === ToolType.GRADIENT || drawingState.tool === ToolType.TRANSFORM ? 'crosshair' : 'default'
+                    // Explicit sizing handled by ResizeObserver to maintain aspect ratio perfectly
+                    width: layoutDims.width || '100%',
+                    height: layoutDims.height || 'auto',
+                    aspectRatio: `${canvasSize.width} / ${canvasSize.height}`,
+                    cursor: drawingState.tool === ToolType.GRADIENT || drawingState.tool === ToolType.TRANSFORM ? 'crosshair' : 'default'
                 }}
             >
-                {/* Ghost Image for Layout */}
-                {isTemplateLoaded && (
-                    <img 
-                        src={templateUrl} 
-                        alt=""
-                        className="invisible relative pointer-events-none select-none z-[-1]" 
-                        aria-hidden="true"
-                    />
-                )}
-
                 {/* Background Fill */}
                 <div className="absolute inset-0 bg-white" />
 

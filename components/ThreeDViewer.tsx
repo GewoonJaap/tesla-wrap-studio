@@ -1,6 +1,6 @@
-import React, { Suspense, useMemo, useEffect } from 'react';
+import React, { Suspense, useMemo } from 'react';
 import { Canvas, useLoader } from '@react-three/fiber';
-import { OrbitControls, Stage, Environment, Html, useProgress } from '@react-three/drei';
+import { OrbitControls, Stage, Html, useProgress } from '@react-three/drei';
 import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { CarModel } from '../types';
@@ -27,20 +27,52 @@ function Loader() {
 const ModelRender = ({ url, textureMap }: { url: string, textureMap: THREE.Texture }) => {
   const obj = useLoader(OBJLoader, url);
 
-  // Apply texture to the model
   const scene = useMemo(() => {
     const clone = obj.clone();
     clone.traverse((child) => {
       if (child instanceof THREE.Mesh) {
-        // Create a nice car paint material
-        child.material = new THREE.MeshStandardMaterial({
+        // Create the wrap material
+        const wrapMaterial = new THREE.MeshStandardMaterial({
           map: textureMap,
+          color: 0xffffff,
           roughness: 0.2,
-          metalness: 0.3,
+          metalness: 0.1,
           envMapIntensity: 1.0,
+          transparent: true,
         });
+
+        if (Array.isArray(child.material)) {
+          const materials = child.material as THREE.Material[];
+          
+          // Logic: Find the material with the lowest number in its name (e.g. Material_140 vs Material_141)
+          // The user states "Material_NUMBER" is the naming convention and we want the first one (lowest).
+          // This ensures we target the main body material even if the array order varies.
+          
+          let targetIndex = 0;
+          let lowestNum = Number.MAX_SAFE_INTEGER;
+
+          materials.forEach((mat, index) => {
+            // Extract number from string like "Material_140"
+            const match = mat.name.match(/(\d+)/); 
+            if (match) {
+               const num = parseInt(match[1], 10);
+               if (num < lowestNum) {
+                 lowestNum = num;
+                 targetIndex = index;
+               }
+            }
+          });
+
+          // Apply to the best candidate found
+          const newMaterials = [...materials];
+          newMaterials[targetIndex] = wrapMaterial;
+          child.material = newMaterials;
+          
+        } else {
+          // Single material - apply directly
+          child.material = wrapMaterial;
+        }
         
-        // Ensure standard geometry calculation
         child.geometry.computeVertexNormals();
       }
     });
@@ -53,23 +85,22 @@ const ModelRender = ({ url, textureMap }: { url: string, textureMap: THREE.Textu
 
 const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ model, textureData, onClose }) => {
   
-  // Create texture from base64 string
   const textureMap = useMemo(() => {
     if (!textureData) return null;
     const loader = new THREE.TextureLoader();
     const tex = loader.load(textureData);
     tex.colorSpace = THREE.SRGBColorSpace;
-    tex.flipY = false; // Important for matching standard UV layouts usually
+    // Note: We use the default flipY = true here.
+    // The canvas generates an image with (0,0) at top-left.
+    // Standard Blender UVs expect (0,0) at bottom-left.
+    // Therefore, flipping Y is required to align the texture correctly.
     return tex;
   }, [textureData]);
 
-  // Construct raw GitHub URL for OBJ
-  // Changed to vehicle.obj as per update for all models
   const modelUrl = `https://raw.githubusercontent.com/GewoonJaap/custom-tesla-wraps/master/${model.folderName}/vehicle.obj`;
 
   return (
     <div className="fixed inset-0 z-[60] bg-zinc-950 flex flex-col animate-in fade-in duration-300">
-      {/* Header */}
       <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-10 pointer-events-none">
         <div className="bg-zinc-900/80 backdrop-blur-md px-4 py-2 rounded-full border border-zinc-700 pointer-events-auto">
             <h2 className="text-white font-bold flex items-center gap-2">
@@ -89,7 +120,7 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ model, textureData, onClose
         <div className="w-full h-full">
             <Canvas shadows camera={{ position: [5, 2, 5], fov: 45 }}>
                 <Suspense fallback={<Loader />}>
-                    <Stage environment="city" intensity={0.5} contactShadow={{ opacity: 0.7, blur: 2 }}>
+                    <Stage environment="city" intensity={0.5} shadows="contact">
                         <ModelRender url={modelUrl} textureMap={textureMap} />
                     </Stage>
                     <OrbitControls autoRotate autoRotateSpeed={0.5} makeDefault minPolarAngle={0} maxPolarAngle={Math.PI / 1.9} />
