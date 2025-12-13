@@ -21,7 +21,8 @@ import {
   Italic,
   CaseSensitive,
   Plus,
-  Key
+  Key,
+  Lock
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -31,6 +32,8 @@ interface ToolbarProps {
   onClear: () => void;
   onApplyTexture: (base64Texture: string) => void;
   getCanvasData: () => string | undefined;
+  apiKey: string;
+  onOpenApiKeyModal: () => void;
 }
 
 const FONTS = [
@@ -38,16 +41,21 @@ const FONTS = [
   'Verdana', 'Georgia', 'Garamond', 'Comic Sans MS', 'Trebuchet MS', 'Impact'
 ];
 
-const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onClear, onApplyTexture, getCanvasData }) => {
+const Toolbar: React.FC<ToolbarProps> = ({ 
+  state, 
+  selectedModel, 
+  onChange, 
+  onClear, 
+  onApplyTexture, 
+  getCanvasData,
+  apiKey,
+  onOpenApiKeyModal
+}) => {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showSecondaryColorPicker, setShowSecondaryColorPicker] = useState(false);
   const [customReference, setCustomReference] = useState<string | null>(null);
-  
-  // API Key State
-  const [apiKey, setApiKey] = useState('');
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   
   // Text Tool Local State
   const [textContent, setTextContent] = useState('Tesla');
@@ -55,10 +63,6 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Load API Key from local storage
-    const savedKey = localStorage.getItem('gemini_api_key');
-    if (savedKey) setApiKey(savedKey);
-
     const handlePaste = (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
       if (!items) return;
@@ -84,11 +88,6 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
   }, []);
-
-  const handleSaveApiKey = (value: string) => {
-    setApiKey(value);
-    localStorage.setItem('gemini_api_key', value);
-  };
 
   const getCompositeReference = async (): Promise<string | undefined> => {
     if (customReference) return customReference;
@@ -150,8 +149,7 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
     if (!prompt.trim()) return;
 
     if (!apiKey) {
-      setShowApiKeyInput(true);
-      alert("Please enter your Google Gemini API Key to generate textures.");
+      onOpenApiKeyModal();
       return;
     }
 
@@ -252,31 +250,18 @@ const Toolbar: React.FC<ToolbarProps> = ({ state, selectedModel, onChange, onCle
               <h2 className="text-sm font-bold text-zinc-100 uppercase tracking-wider">AI Texture Gen</h2>
             </div>
             <button 
-                onClick={() => setShowApiKeyInput(!showApiKeyInput)}
-                className={`p-1.5 rounded-lg transition-colors ${apiKey ? 'text-green-400 bg-green-400/10' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}`}
+                onClick={onOpenApiKeyModal}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-colors ${
+                    apiKey 
+                    ? 'text-green-400 bg-green-400/10 hover:bg-green-400/20' 
+                    : 'text-zinc-400 bg-zinc-800 hover:text-white hover:bg-zinc-700'
+                }`}
                 title="Configure API Key"
             >
-                <Key className="w-4 h-4" />
+                {apiKey ? <Key className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+                {apiKey ? 'Key Set' : 'Set Key'}
             </button>
           </div>
-
-          {showApiKeyInput && (
-            <div className="mb-4 bg-zinc-950/50 p-3 rounded-lg border border-zinc-800 animate-in slide-in-from-top-2">
-                <label className="text-xs text-zinc-400 block mb-1.5">Gemini API Key</label>
-                <div className="flex gap-2">
-                    <input 
-                        type="password"
-                        value={apiKey}
-                        onChange={(e) => handleSaveApiKey(e.target.value)}
-                        placeholder="Enter AI Studio Key..."
-                        className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:border-purple-500 outline-none"
-                    />
-                </div>
-                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-[10px] text-purple-400 hover:underline mt-1.5 inline-block">
-                    Get an API key
-                </a>
-            </div>
-          )}
           
           <div className="space-y-3">
             <div 

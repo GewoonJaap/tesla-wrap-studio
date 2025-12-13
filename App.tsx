@@ -1,8 +1,9 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Header from './components/Header';
 import Toolbar from './components/Toolbar';
 import Editor from './components/Editor';
 import ThreeDViewer from './components/ThreeDViewer';
+import ApiKeyModal from './components/ApiKeyModal';
 import { CAR_MODELS } from './constants';
 import { CarModel, DrawingState, ToolType, EditorHandle } from './types';
 
@@ -25,12 +26,28 @@ const App: React.FC = () => {
   });
   const [textureToApply, setTextureToApply] = useState<string | null>(null);
   
+  // API Key & Modal State
+  const [apiKey, setApiKey] = useState('');
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+
   // 3D Preview State
   const [show3D, setShow3D] = useState(false);
   const [previewTexture, setPreviewTexture] = useState<string | null>(null);
 
   // Ref to access editor methods
   const editorRef = useRef<EditorHandle>(null);
+
+  // Load API Key on Mount
+  useEffect(() => {
+    const savedKey = localStorage.getItem('gemini_api_key');
+    if (savedKey) setApiKey(savedKey);
+  }, []);
+
+  const handleSaveApiKey = (key: string) => {
+    setApiKey(key);
+    localStorage.setItem('gemini_api_key', key);
+    setIsApiKeyModalOpen(false);
+  };
 
   const handleStateChange = (updates: Partial<DrawingState>) => {
     setDrawingState(prev => ({ ...prev, ...updates }));
@@ -98,6 +115,8 @@ const App: React.FC = () => {
           onClear={handleClearCanvas}
           onApplyTexture={handleApplyTexture}
           getCanvasData={getCanvasData}
+          apiKey={apiKey}
+          onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
         />
         
         <Editor 
@@ -117,6 +136,14 @@ const App: React.FC = () => {
             onClose={() => setShow3D(false)}
         />
       )}
+
+      {/* API Key Modal */}
+      <ApiKeyModal 
+        isOpen={isApiKeyModalOpen}
+        onClose={() => setIsApiKeyModalOpen(false)}
+        onSave={handleSaveApiKey}
+        initialKey={apiKey}
+      />
     </div>
   );
 };
