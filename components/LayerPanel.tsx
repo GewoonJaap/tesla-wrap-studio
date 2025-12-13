@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Layer } from '../types';
-import { Eye, EyeOff, Plus, Trash2, ArrowUp, ArrowDown, Layers, Pencil } from 'lucide-react';
+import { Eye, EyeOff, Plus, Trash2, ArrowUp, ArrowDown, Layers, Pencil, X } from 'lucide-react';
 
 interface LayerPanelProps {
   layers: Layer[];
@@ -12,6 +12,8 @@ interface LayerPanelProps {
   onMoveLayer: (id: string, direction: 'up' | 'down') => void;
   onUpdateOpacity: (id: string, opacity: number) => void;
   onRenameLayer: (id: string, name: string) => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 const LayerPanel: React.FC<LayerPanelProps> = ({
@@ -23,7 +25,9 @@ const LayerPanel: React.FC<LayerPanelProps> = ({
   onRemoveLayer,
   onMoveLayer,
   onUpdateOpacity,
-  onRenameLayer
+  onRenameLayer,
+  isOpen,
+  onClose
 }) => {
   const displayLayers = [...layers].reverse();
 
@@ -65,137 +69,158 @@ const LayerPanel: React.FC<LayerPanelProps> = ({
   };
 
   return (
-    <div className="w-64 bg-zinc-900 border-l border-zinc-800 flex flex-col h-full shrink-0 z-20 shadow-xl">
-      <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-900">
-        <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-zinc-400" />
-            <h3 className="text-xs font-bold text-zinc-100 uppercase tracking-wider">Layers</h3>
-        </div>
-        <button
-          onClick={() => onAddLayer()}
-          className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-md transition-colors text-zinc-300 hover:text-white"
-          title="New Layer"
-        >
-          <Plus className="w-4 h-4" />
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-2 space-y-1">
-        {displayLayers.map((layer, index) => {
-          const originalIndex = layers.length - 1 - index;
-          const isActive = layer.id === activeLayerId;
-          const isEditing = editingId === layer.id;
-
-          return (
-            <div
-              key={layer.id}
-              onClick={() => !isEditing && onLayerClick(layer.id)}
-              className={`group flex flex-col gap-1 p-2 rounded-lg text-sm border cursor-pointer transition-all select-none ${
-                isActive
-                  ? 'bg-zinc-800 border-zinc-600 shadow-md ring-1 ring-white/10'
-                  : 'bg-zinc-900/50 border-transparent hover:bg-zinc-800 hover:border-zinc-700 text-zinc-400'
-              }`}
+    <>
+      {/* Mobile Backdrop */}
+      {isOpen && (
+        <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden animate-in fade-in duration-200"
+            onClick={onClose}
+        />
+      )}
+      
+      <div className={`fixed inset-y-0 right-0 z-50 w-64 bg-zinc-900 border-l border-zinc-800 flex flex-col h-full shrink-0 shadow-xl transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isOpen ? 'translate-x-0' : 'translate-x-full md:shadow-none'}`}>
+        
+        {/* Header */}
+        <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-900">
+          <div className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-zinc-400" />
+              <h3 className="text-xs font-bold text-zinc-100 uppercase tracking-wider">Layers</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onAddLayer()}
+              className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-md transition-colors text-zinc-300 hover:text-white"
+              title="New Layer"
             >
-              <div className="flex items-center gap-2">
-                <button
-                    onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleVisibility(layer.id);
-                    }}
-                    className={`p-1 rounded hover:bg-zinc-700 ${layer.visible ? 'text-zinc-400' : 'text-zinc-600'}`}
-                >
-                    {layer.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                </button>
+              <Plus className="w-4 h-4" />
+            </button>
+            {/* Mobile Close */}
+            <button 
+                onClick={onClose} 
+                className="md:hidden p-1.5 hover:bg-zinc-800 rounded-md text-zinc-400 hover:text-white"
+            >
+                <X className="w-4 h-4"/>
+            </button>
+          </div>
+        </div>
 
-                {isEditing ? (
-                   <input 
-                      ref={inputRef}
-                      type="text" 
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      onBlur={saveEditing}
-                      onKeyDown={handleKeyDown}
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex-1 min-w-0 bg-zinc-950 border border-blue-500 rounded px-1.5 py-0.5 text-sm text-white focus:outline-none"
-                   />
-                ) : (
-                  <span 
-                    className={`flex-1 truncate ${isActive ? 'text-white font-medium' : ''}`}
-                    onDoubleClick={(e) => startEditing(e, layer.id, layer.name)}
-                    title="Double-click to rename"
+        <div className="flex-1 overflow-y-auto scrollbar-thin p-2 space-y-1">
+          {displayLayers.map((layer, index) => {
+            const originalIndex = layers.length - 1 - index;
+            const isActive = layer.id === activeLayerId;
+            const isEditing = editingId === layer.id;
+
+            return (
+              <div
+                key={layer.id}
+                onClick={() => !isEditing && onLayerClick(layer.id)}
+                className={`group flex flex-col gap-1 p-2 rounded-lg text-sm border cursor-pointer transition-all select-none ${
+                  isActive
+                    ? 'bg-zinc-800 border-zinc-600 shadow-md ring-1 ring-white/10'
+                    : 'bg-zinc-900/50 border-transparent hover:bg-zinc-800 hover:border-zinc-700 text-zinc-400'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <button
+                      onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleVisibility(layer.id);
+                      }}
+                      className={`p-1 rounded hover:bg-zinc-700 ${layer.visible ? 'text-zinc-400' : 'text-zinc-600'}`}
                   >
-                      {layer.name}
-                  </span>
-                )}
+                      {layer.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                  </button>
 
+                  {isEditing ? (
+                    <input 
+                        ref={inputRef}
+                        type="text" 
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onBlur={saveEditing}
+                        onKeyDown={handleKeyDown}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 min-w-0 bg-zinc-950 border border-blue-500 rounded px-1.5 py-0.5 text-sm text-white focus:outline-none"
+                    />
+                  ) : (
+                    <span 
+                      className={`flex-1 truncate ${isActive ? 'text-white font-medium' : ''}`}
+                      onDoubleClick={(e) => startEditing(e, layer.id, layer.name)}
+                      title="Double-click to rename"
+                    >
+                        {layer.name}
+                    </span>
+                  )}
+
+                  {isActive && !isEditing && (
+                      <div className="flex items-center gap-1 opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => startEditing(e, layer.id, layer.name)}
+                            className="p-1 hover:text-white text-zinc-500"
+                            title="Rename"
+                          >
+                            <Pencil className="w-3 h-3"/>
+                          </button>
+                          <div className="flex flex-col gap-0.5">
+                              <button
+                              disabled={originalIndex === layers.length - 1}
+                              onClick={(e) => {
+                                  e.stopPropagation();
+                                  onMoveLayer(layer.id, 'up');
+                              }}
+                              className="p-0.5 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                              >
+                              <ArrowUp className="w-3 h-3" />
+                              </button>
+                              <button
+                              disabled={originalIndex === 0}
+                              onClick={(e) => {
+                                  e.stopPropagation();
+                                  onMoveLayer(layer.id, 'down');
+                              }}
+                              className="p-0.5 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                              >
+                              <ArrowDown className="w-3 h-3" />
+                              </button>
+                          </div>
+                          <button
+                              onClick={(e) => {
+                              e.stopPropagation();
+                              onRemoveLayer(layer.id);
+                              }}
+                              className="p-1.5 hover:bg-red-500/20 text-zinc-500 hover:text-red-400 rounded transition-colors"
+                          >
+                              <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                      </div>
+                  )}
+                </div>
+                
                 {isActive && !isEditing && (
-                    <div className="flex items-center gap-1 opacity-100 transition-opacity">
-                        <button
-                          onClick={(e) => startEditing(e, layer.id, layer.name)}
-                          className="p-1 hover:text-white text-zinc-500"
-                          title="Rename"
-                        >
-                           <Pencil className="w-3 h-3"/>
-                        </button>
-                        <div className="flex flex-col gap-0.5">
-                            <button
-                            disabled={originalIndex === layers.length - 1}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onMoveLayer(layer.id, 'up');
-                            }}
-                            className="p-0.5 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-                            >
-                            <ArrowUp className="w-3 h-3" />
-                            </button>
-                            <button
-                            disabled={originalIndex === 0}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onMoveLayer(layer.id, 'down');
-                            }}
-                            className="p-0.5 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-                            >
-                            <ArrowDown className="w-3 h-3" />
-                            </button>
-                        </div>
-                        <button
-                            onClick={(e) => {
-                            e.stopPropagation();
-                            onRemoveLayer(layer.id);
-                            }}
-                            className="p-1.5 hover:bg-red-500/20 text-zinc-500 hover:text-red-400 rounded transition-colors"
-                        >
-                            <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                    </div>
+                  <div className="px-1 pt-1 flex items-center gap-2 animate-in slide-in-from-top-1 fade-in duration-200">
+                      <span className="text-[10px] text-zinc-500 w-6">Op:</span>
+                      <input 
+                          type="range" 
+                          min="0" 
+                          max="1" 
+                          step="0.01"
+                          value={layer.opacity}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => onUpdateOpacity(layer.id, parseFloat(e.target.value))}
+                          className="flex-1 h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-white"
+                      />
+                  </div>
                 )}
               </div>
-              
-              {isActive && !isEditing && (
-                <div className="px-1 pt-1 flex items-center gap-2 animate-in slide-in-from-top-1 fade-in duration-200">
-                    <span className="text-[10px] text-zinc-500 w-6">Op:</span>
-                    <input 
-                        type="range" 
-                        min="0" 
-                        max="1" 
-                        step="0.01"
-                        value={layer.opacity}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => onUpdateOpacity(layer.id, parseFloat(e.target.value))}
-                        className="flex-1 h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-white"
-                    />
-                </div>
-              )}
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+        
+        <div className="p-3 border-t border-zinc-800 bg-zinc-950/50 text-xs text-zinc-500 text-center">
+          {layers.length} Layers • {layers.filter(l => l.visible).length} Visible
+        </div>
       </div>
-      
-      <div className="p-3 border-t border-zinc-800 bg-zinc-950/50 text-xs text-zinc-500 text-center">
-         {layers.length} Layers • {layers.filter(l => l.visible).length} Visible
-      </div>
-    </div>
+    </>
   );
 };
 

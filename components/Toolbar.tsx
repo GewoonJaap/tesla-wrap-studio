@@ -22,7 +22,8 @@ import {
   CaseSensitive,
   Plus,
   Key,
-  Lock
+  Lock,
+  X
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -34,6 +35,8 @@ interface ToolbarProps {
   getCanvasData: () => string | undefined;
   apiKey: string;
   onOpenApiKeyModal: () => void;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 const FONTS = [
@@ -49,7 +52,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onApplyTexture, 
   getCanvasData,
   apiKey,
-  onOpenApiKeyModal
+  onOpenApiKeyModal,
+  isOpen,
+  onClose
 }) => {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -158,6 +163,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
       const referenceData = await getCompositeReference();
       const textureUrl = await generateTexture(prompt, referenceData, apiKey);
       onApplyTexture(textureUrl);
+      onClose(); // Close sidebar on mobile to show result
     } catch (e: any) {
       console.error(e);
       alert(`Failed to generate texture: ${e.message}`);
@@ -203,11 +209,13 @@ const Toolbar: React.FC<ToolbarProps> = ({
     ctx.fillText(textContent, width / 2, height / 2);
 
     onApplyTexture(canvas.toDataURL());
+    onClose(); // Close sidebar on mobile to show placement
   };
 
   const handleApplyExample = (filename: string) => {
     const url = `${GITHUB_BASE_URL}/${selectedModel.folderName}/example/${filename}`;
     onApplyTexture(url);
+    onClose(); // Close sidebar on mobile to show placement
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -240,8 +248,27 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
   return (
     <>
-      <aside className="w-80 bg-zinc-900 border-l border-zinc-800 flex flex-col h-full shrink-0 overflow-y-auto">
+      {/* Mobile Backdrop */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden animate-in fade-in duration-200"
+          onClick={onClose}
+        />
+      )}
+
+      {/* Toolbar Sidebar */}
+      <aside 
+        className={`fixed inset-y-0 left-0 z-50 w-80 bg-zinc-900 border-r border-zinc-800 flex flex-col h-full shrink-0 overflow-y-auto transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:shadow-none'}`}
+      >
         
+        {/* Mobile Header */}
+        <div className="md:hidden p-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-900 sticky top-0 z-10">
+           <h2 className="font-bold text-white">Tools & Effects</h2>
+           <button onClick={onClose} className="p-1 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white">
+             <X className="w-5 h-5"/>
+           </button>
+        </div>
+
         {/* AI Section */}
         <div className="p-6 border-b border-zinc-800">
           <div className="flex items-center justify-between mb-4">

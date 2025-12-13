@@ -1,41 +1,59 @@
 import React, { useState } from 'react';
 import { CarModel } from '../types';
 import { CAR_MODELS } from '../constants';
-import { Car, ChevronDown, Download, HelpCircle, X, Coffee, Box } from 'lucide-react';
+import { Car, ChevronDown, Download, HelpCircle, X, Coffee, Box, Menu, Layers, Palette } from 'lucide-react';
 
 interface HeaderProps {
   selectedModel: CarModel;
   onSelectModel: (model: CarModel) => void;
   onDownload: () => void;
   onOpen3D: () => void;
+  onToggleTools: () => void;
+  onToggleLayers: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ selectedModel, onSelectModel, onDownload, onOpen3D }) => {
+const Header: React.FC<HeaderProps> = ({ 
+  selectedModel, 
+  onSelectModel, 
+  onDownload, 
+  onOpen3D,
+  onToggleTools,
+  onToggleLayers
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
 
   return (
     <>
-      <header className="h-16 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-6 z-50 shrink-0 shadow-md">
-        <div className="flex items-center gap-4">
+      <header className="h-14 sm:h-16 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-3 sm:px-6 z-[60] shrink-0 shadow-md">
+        <div className="flex items-center gap-2 sm:gap-4">
+          
+          {/* Mobile Tools Toggle */}
+          <button 
+            onClick={onToggleTools}
+            className="md:hidden p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+          >
+            <Palette className="w-5 h-5" />
+          </button>
+
           <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-tr from-red-600 to-red-500 p-2 rounded-lg shadow-lg shadow-red-900/20">
-              <Car className="text-white w-6 h-6" />
+            <div className="bg-gradient-to-tr from-red-600 to-red-500 p-1.5 sm:p-2 rounded-lg shadow-lg shadow-red-900/20 hidden xs:block">
+              <Car className="text-white w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400 hidden sm:block tracking-tight">
+            <h1 className="text-lg sm:text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400 hidden lg:block tracking-tight">
               Tesla Wrap Studio
             </h1>
           </div>
           
-          <div className="h-6 w-px bg-zinc-800 hidden sm:block mx-2"></div>
+          <div className="h-6 w-px bg-zinc-800 hidden lg:block mx-2"></div>
 
           <div className="relative">
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="flex items-center gap-2 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-200 px-4 py-2 rounded-lg transition-all border border-zinc-700 hover:border-zinc-600 outline-none focus:ring-2 focus:ring-red-500/20"
+              className="flex items-center gap-2 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-200 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg transition-all border border-zinc-700 hover:border-zinc-600 outline-none focus:ring-2 focus:ring-red-500/20 max-w-[160px] sm:max-w-none"
             >
-              <span className="text-sm font-medium">{selectedModel.name}</span>
-              <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+              <span className="text-xs sm:text-sm font-medium truncate">{selectedModel.name}</span>
+              <ChevronDown className={`w-3 h-3 sm:w-4 sm:h-4 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {isOpen && (
@@ -66,10 +84,10 @@ const Header: React.FC<HeaderProps> = ({ selectedModel, onSelectModel, onDownloa
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3">
           <button
             onClick={() => setShowHelp(true)}
-            className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition-colors"
+            className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition-colors hidden sm:block"
             title="Help & Instructions"
           >
             <HelpCircle className="w-5 h-5" />
@@ -79,7 +97,7 @@ const Header: React.FC<HeaderProps> = ({ selectedModel, onSelectModel, onDownloa
             href="https://buymeacoffee.com/mrproper"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 bg-[#FFDD00] text-black px-3 py-2 sm:px-4 sm:py-2 rounded-full hover:bg-[#FFDD00]/90 transition-all font-medium text-sm shadow-lg shadow-yellow-500/10 active:scale-95"
+            className="items-center gap-2 bg-[#FFDD00] text-black px-3 py-2 sm:px-4 sm:py-2 rounded-full hover:bg-[#FFDD00]/90 transition-all font-medium text-sm shadow-lg shadow-yellow-500/10 active:scale-95 hidden xl:flex"
           >
             <Coffee className="w-4 h-4" />
             <span className="hidden sm:inline">Buy me a coffee</span>
@@ -87,18 +105,28 @@ const Header: React.FC<HeaderProps> = ({ selectedModel, onSelectModel, onDownloa
 
           <button
             onClick={onOpen3D}
-            className="flex items-center gap-2 bg-zinc-800 text-white border border-zinc-600 px-4 py-2 rounded-full hover:bg-zinc-700 transition-all font-medium text-sm shadow-lg active:scale-95"
+            className="flex items-center gap-2 bg-zinc-800 text-white border border-zinc-600 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full hover:bg-zinc-700 transition-all font-medium text-xs sm:text-sm shadow-lg active:scale-95"
+            title="3D Preview"
           >
             <Box className="w-4 h-4" />
-            <span className="hidden sm:inline">3D Preview</span>
+            <span className="hidden sm:inline">3D</span>
           </button>
 
           <button
             onClick={onDownload}
-            className="flex items-center gap-2 bg-white text-black px-5 py-2 rounded-full hover:bg-zinc-200 transition-all font-medium text-sm shadow-lg shadow-white/5 active:scale-95"
+            className="flex items-center gap-2 bg-white text-black px-3 py-1.5 sm:px-5 sm:py-2 rounded-full hover:bg-zinc-200 transition-all font-medium text-xs sm:text-sm shadow-lg shadow-white/5 active:scale-95"
+            title="Export Wrap"
           >
             <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">Export Wrap</span>
+            <span className="hidden sm:inline">Export</span>
+          </button>
+
+          {/* Mobile Layers Toggle */}
+          <button 
+            onClick={onToggleLayers}
+            className="md:hidden p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors ml-1"
+          >
+            <Layers className="w-5 h-5" />
           </button>
         </div>
       </header>

@@ -34,6 +34,10 @@ const App: React.FC = () => {
   const [show3D, setShow3D] = useState(false);
   const [previewTexture, setPreviewTexture] = useState<string | null>(null);
 
+  // Mobile Menu States
+  const [isToolsOpen, setIsToolsOpen] = useState(false);
+  const [isLayersOpen, setIsLayersOpen] = useState(false);
+
   // Ref to access editor methods
   const editorRef = useRef<EditorHandle>(null);
 
@@ -105,9 +109,11 @@ const App: React.FC = () => {
         onSelectModel={setSelectedModel}
         onDownload={handleDownload}
         onOpen3D={handleOpen3D}
+        onToggleTools={() => setIsToolsOpen(!isToolsOpen)}
+        onToggleLayers={() => setIsLayersOpen(!isLayersOpen)}
       />
       
-      <main className="flex-1 flex overflow-hidden">
+      <main className="flex-1 flex overflow-hidden relative">
         <Toolbar 
           state={drawingState} 
           selectedModel={selectedModel}
@@ -117,6 +123,8 @@ const App: React.FC = () => {
           getCanvasData={getCanvasData}
           apiKey={apiKey}
           onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
+          isOpen={isToolsOpen}
+          onClose={() => setIsToolsOpen(false)}
         />
         
         <Editor 
@@ -125,6 +133,8 @@ const App: React.FC = () => {
           drawingState={drawingState}
           textureToApply={textureToApply}
           onTextureApplied={handleTextureApplied}
+          isLayerPanelOpen={isLayersOpen}
+          onCloseLayerPanel={() => setIsLayersOpen(false)}
         />
       </main>
 

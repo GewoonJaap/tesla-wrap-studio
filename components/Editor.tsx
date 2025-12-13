@@ -9,6 +9,8 @@ interface EditorProps {
   drawingState: DrawingState;
   textureToApply: string | null;
   onTextureApplied: () => void;
+  isLayerPanelOpen?: boolean;
+  onCloseLayerPanel?: () => void;
 }
 
 interface TransformState {
@@ -23,7 +25,9 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
   model, 
   drawingState, 
   textureToApply,
-  onTextureApplied
+  onTextureApplied,
+  isLayerPanelOpen,
+  onCloseLayerPanel
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -881,6 +885,8 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
             onMoveLayer={moveLayer}
             onUpdateOpacity={updateOpacity}
             onRenameLayer={renameLayer}
+            isOpen={isLayerPanelOpen}
+            onClose={onCloseLayerPanel}
         />
     </div>
   );
