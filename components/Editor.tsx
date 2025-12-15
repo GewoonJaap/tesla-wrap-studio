@@ -96,7 +96,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
       }
     },
     getCompositeData: () => {
-      if (!templateImgRef.current) return undefined;
+      if (!templateImgRef.current && model.id !== 'license-plate') return undefined;
 
       const canvas = document.createElement('canvas');
       canvas.width = canvasSize.width;
@@ -121,7 +121,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
 
       return canvas.toDataURL('image/png');
     }
-  }), [layers, activeLayerId, canvasSize]);
+  }), [layers, activeLayerId, canvasSize, model.id]);
 
   // --- Layout Observer for strict Aspect Ratio ---
   useEffect(() => {
@@ -212,6 +212,17 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
     setTemplateError(false);
     setReferenceError(false);
     setPendingTexture(null);
+
+    // SPECIAL CASE: License Plate
+    if (model.id === 'license-plate') {
+        // Recommended resolution by Tesla is 420x100
+        setCanvasSize({ width: 420, height: 100 });
+        setIsTemplateLoaded(true);
+        templateImgRef.current = null;
+        // Trigger re-render to ensure canvas resizes
+        setLayers(prev => [...prev]);
+        return;
+    }
 
     const img = new Image();
     img.crossOrigin = "anonymous";
@@ -614,22 +625,24 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
         <div ref={wrapperRef} className="flex-1 bg-zinc-950/50 relative overflow-hidden flex items-center justify-center p-8 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-zinc-900 to-zinc-950 select-none">
         
             {/* View Toggle */}
-            <div className="absolute top-4 right-4 z-10">
-                <button 
-                onClick={() => setShowReference(!showReference)}
-                className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition-all border shadow-lg ${
-                    showReference 
-                    ? 'bg-red-500/10 text-red-400 border-red-500/30' 
-                    : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:text-white hover:border-zinc-600'
-                }`}
-                >
-                {showReference ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}
-                {showReference ? 'Hide Reference' : 'Show Reference'}
-                </button>
-            </div>
+            {model.id !== 'license-plate' && (
+              <div className="absolute top-4 right-4 z-10">
+                  <button 
+                  onClick={() => setShowReference(!showReference)}
+                  className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition-all border shadow-lg ${
+                      showReference 
+                      ? 'bg-red-500/10 text-red-400 border-red-500/30' 
+                      : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:text-white hover:border-zinc-600'
+                  }`}
+                  >
+                  {showReference ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}
+                  {showReference ? 'Hide Reference' : 'Show Reference'}
+                  </button>
+              </div>
+            )}
 
             {/* Reference Window */}
-            {showReference && (
+            {showReference && model.id !== 'license-plate' && (
                 <div className="absolute top-16 right-4 z-30 w-72 bg-zinc-900 rounded-xl border border-zinc-700 shadow-2xl overflow-hidden animate-in slide-in-from-right-4 fade-in duration-200">
                 <div className="bg-zinc-800/50 px-3 py-2 border-b border-zinc-700 flex justify-between items-center">
                     <span className="text-xs font-medium text-zinc-300">Vehicle Reference</span>
@@ -827,12 +840,17 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
                 )}
 
                 {/* Template Wireframe */}
-                {isTemplateLoaded && (
+                {isTemplateLoaded && model.id !== 'license-plate' && (
                     <img 
                         src={templateUrl} 
                         alt="Template"
                         className="absolute inset-0 w-full h-full object-fill pointer-events-none opacity-60 mix-blend-multiply select-none" 
                     />
+                )}
+                
+                {/* License Plate Guide */}
+                {model.id === 'license-plate' && (
+                    <div className="absolute inset-0 border-4 border-black/10 pointer-events-none rounded-lg z-10"></div>
                 )}
 
                 {/* SVG Overlays */}

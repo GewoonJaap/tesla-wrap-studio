@@ -23,6 +23,7 @@ const STANDARD_EXAMPLES = [
 ];
 
 export const CAR_MODELS: CarModel[] = [
+  { id: 'license-plate', name: 'License Plate (420x100)', folderName: 'license-plate', examples: [] },
   { id: 'cybertruck', name: 'Cybertruck', folderName: 'cybertruck', examples: CYBERTRUCK_EXAMPLES },
   { id: 'model3-2024-perf', name: 'Model 3 (2024 Performance)', folderName: 'model3-2024-performance', examples: STANDARD_EXAMPLES },
   { id: 'model3-2024-base', name: 'Model 3 (2024 Base)', folderName: 'model3-2024-base', examples: STANDARD_EXAMPLES },

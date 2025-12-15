@@ -72,7 +72,16 @@ const App: React.FC = () => {
     
     // Create a temporary link
     const link = document.createElement('a');
-    link.download = `tesla-wrap-${selectedModel.id}-${Date.now()}.png`;
+    
+    if (selectedModel.id === 'license-plate') {
+        // Tesla License Plate requirements: Max 32 chars, alphanumeric only (roughly)
+        // We use a short timestamp to ensure uniqueness and compliance
+        const shortId = Date.now().toString().slice(-6);
+        link.download = `Plate_${shortId}.png`;
+    } else {
+        link.download = `tesla-wrap-${selectedModel.id}-${Date.now()}.png`;
+    }
+
     link.href = dataUrl;
     document.body.appendChild(link);
     link.click();
