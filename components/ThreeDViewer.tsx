@@ -100,17 +100,17 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ model, textureData, onClose
   const modelUrl = `https://raw.githubusercontent.com/GewoonJaap/custom-tesla-wraps/master/${model.folderName}/vehicle.obj`;
 
   return (
-    <div className="fixed inset-0 z-[60] bg-zinc-950 flex flex-col animate-in fade-in duration-300">
-      <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-10 pointer-events-none">
-        <div className="bg-zinc-900/80 backdrop-blur-md px-4 py-2 rounded-full border border-zinc-700 pointer-events-auto">
-            <h2 className="text-white font-bold flex items-center gap-2">
-                <RotateCw className="w-4 h-4 text-purple-500" />
-                3D Preview: {model.name}
+    <div className="fixed inset-0 z-[200] bg-zinc-950 flex flex-col animate-in fade-in duration-300">
+      <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start z-10 pointer-events-none safe-area-top">
+        <div className="bg-zinc-900/80 backdrop-blur-md px-3 py-2 rounded-full border border-zinc-700 pointer-events-auto max-w-[75%] shadow-xl">
+            <h2 className="text-white font-bold flex items-center gap-2 text-xs sm:text-base">
+                <RotateCw className="w-4 h-4 text-purple-500 shrink-0" />
+                <span className="truncate">3D Preview: {model.name}</span>
             </h2>
         </div>
         <button 
             onClick={onClose}
-            className="bg-zinc-900/80 hover:bg-zinc-800 text-white p-2 rounded-full border border-zinc-700 pointer-events-auto transition-colors"
+            className="bg-zinc-900/80 hover:bg-zinc-800 text-white p-2 rounded-full border border-zinc-700 pointer-events-auto transition-colors shadow-xl"
         >
             <X className="w-6 h-6" />
         </button>
@@ -127,7 +127,7 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ model, textureData, onClose
                 </Suspense>
             </Canvas>
             
-            <div className="absolute bottom-8 left-0 right-0 flex justify-center pointer-events-none">
+            <div className="absolute bottom-8 left-0 right-0 flex justify-center pointer-events-none px-4 text-center">
                 <p className="text-zinc-500 text-xs bg-black/30 px-3 py-1 rounded-full backdrop-blur-sm">
                     Drag to rotate • Scroll to zoom
                 </p>

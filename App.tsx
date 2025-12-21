@@ -102,6 +102,10 @@ const App: React.FC = () => {
     setTextureToApply(texture);
   };
 
+  const handleImportWrap = (base64: string) => {
+    setTextureToApply(base64);
+  };
+
   const handleTextureApplied = () => {
     setTextureToApply(null);
   };
@@ -117,6 +121,7 @@ const App: React.FC = () => {
         selectedModel={selectedModel} 
         onSelectModel={setSelectedModel}
         onDownload={handleDownload}
+        onImportWrap={handleImportWrap}
         onOpen3D={handleOpen3D}
         onToggleTools={() => setIsToolsOpen(!isToolsOpen)}
         onToggleLayers={() => setIsLayersOpen(!isLayersOpen)}
