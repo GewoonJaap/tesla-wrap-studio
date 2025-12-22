@@ -139,38 +139,52 @@ const Toolbar: React.FC<ToolbarProps> = ({
     setUploadedImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  const getCompositeReference = async (): Promise<string | undefined> => {
-    if (customReference) return customReference;
-    
-    const canvasData = getCanvasData();
-    const templateUrl = `${GITHUB_BASE_URL}/${selectedModel.folderName}/template.png`;
-    return new Promise((resolve) => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) { resolve(canvasData); return; }
-      const bgImg = new Image();
-      const templateImg = new Image();
-      bgImg.crossOrigin = "anonymous";
-      templateImg.crossOrigin = "anonymous";
-      let imagesLoaded = 0;
-      let hasError = false;
-      const checkDone = () => {
-        if (hasError) { resolve(canvasData); return; }
-        if (imagesLoaded === 2) {
-          canvas.width = templateImg.naturalWidth || 1024;
-          canvas.height = templateImg.naturalHeight || 1024;
-          ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
-          ctx.drawImage(templateImg, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/png'));
-        }
-      };
-      bgImg.onload = () => { imagesLoaded++; checkDone(); };
-      bgImg.onerror = () => { hasError = true; checkDone(); };
-      templateImg.onload = () => { imagesLoaded++; checkDone(); };
-      templateImg.onerror = () => { hasError = true; checkDone(); };
-      bgImg.src = canvasData || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAANSURBVBhXY2BgYAAAAAQAAVzN/2kAAAAASUVORK5CYII=';
-      templateImg.src = templateUrl;
-    });
+  // Helper to fetch the Mask Image
+  const getMaskImage = async (): Promise<string> => {
+     // Use customReference if user pasted something that acts as a mask (unlikely, but fallback)
+     // Actually, let's enforce using the repo mask for now.
+     
+     const maskUrl = `${GITHUB_BASE_URL}/${selectedModel.folderName}/template_ai_mask.png`;
+     
+     return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                reject(new Error("Could not create canvas context"));
+                return;
+            }
+            ctx.drawImage(img, 0, 0);
+            resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = () => {
+            // Fallback for models that might not have the mask yet (like license plate or older ones)
+            // In that case, we might use the standard template, or just reject.
+            console.warn("Mask not found, falling back to standard template.");
+            const fallbackUrl = `${GITHUB_BASE_URL}/${selectedModel.folderName}/template.png`;
+            const fbImg = new Image();
+            fbImg.crossOrigin = "anonymous";
+            fbImg.onload = () => {
+                 const canvas = document.createElement('canvas');
+                 canvas.width = fbImg.naturalWidth;
+                 canvas.height = fbImg.naturalHeight;
+                 const ctx = canvas.getContext('2d');
+                 if(ctx) {
+                     ctx.drawImage(fbImg, 0, 0);
+                     resolve(canvas.toDataURL('image/png'));
+                 } else {
+                     reject(new Error("Fallback failed"));
+                 }
+            };
+            fbImg.onerror = () => reject(new Error("Failed to load mask or template"));
+            fbImg.src = fallbackUrl;
+        };
+        img.src = maskUrl;
+     });
   };
 
   const handleGenerate = async () => {
@@ -178,14 +192,22 @@ const Toolbar: React.FC<ToolbarProps> = ({
     if (!apiKey) { onOpenApiKeyModal(); return; }
     setIsGenerating(true);
     try {
-      const referenceData = await getCompositeReference();
+      // 1. Get the Mask (AI Mask)
+      const maskData = await getMaskImage();
+      
+      // 2. Get the Sketch (Current User Drawing from Canvas)
+      const sketchData = getCanvasData();
+
+      // 3. Generate
       const textureUrl = await generateTexture(
         prompt, 
-        referenceData, 
+        maskData, 
+        sketchData,
         apiKey, 
         uploadedImages,
         selectedGenModel
       );
+      
       onApplyTexture(textureUrl);
       onClose(); // Auto-close on mobile
     } catch (e: any) {

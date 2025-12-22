@@ -2,7 +2,8 @@ import { GoogleGenAI } from "@google/genai";
 
 export const generateTexture = async (
   prompt: string, 
-  referenceImage?: string, 
+  maskImageBase64: string,
+  sketchImageBase64?: string,
   userApiKey?: string,
   userUploadImages?: string[],
   modelId: string = 'gemini-2.5-flash-image'
@@ -27,21 +28,33 @@ export const generateTexture = async (
         return match ? match[1] : 'image/png';
     };
 
-    // 1. Add the Tesla Template (Context)
-    if (referenceImage) {
-      const base64Data = referenceImage.split(',')[1];
+    // 1. Add the Tesla Template Mask (Primary Context)
+    if (maskImageBase64) {
+      const base64Data = maskImageBase64.split(',')[1];
       if (base64Data) {
         parts.push({
           inlineData: {
-            mimeType: getMimeType(referenceImage),
+            mimeType: getMimeType(maskImageBase64),
             data: base64Data
           }
         });
       }
     }
 
-    // 2. Add the User's Style/Logo References (Optional)
-    let referenceInstruction = "";
+    // 2. Add the User's Sketch/Current Canvas (Secondary Context)
+    if (sketchImageBase64) {
+        const base64Data = sketchImageBase64.split(',')[1];
+        if (base64Data) {
+          parts.push({
+            inlineData: {
+              mimeType: getMimeType(sketchImageBase64),
+              data: base64Data
+            }
+          });
+        }
+    }
+
+    // 3. Add the User's Uploaded References (Style/Logo)
     if (userUploadImages && userUploadImages.length > 0) {
       userUploadImages.forEach((img) => {
           const base64Data = img.split(',')[1];
@@ -54,28 +67,17 @@ export const generateTexture = async (
             });
           }
       });
-      referenceInstruction = `Secondary reference images have been provided. Use these images as primary sources for style, pattern, or logo placement.`;
     }
 
-    const systemPrompt = `You are an expert Tesla Paint Shop Expert.
-    
-    CONTEXT:
-    The first image provided is the official Tesla "Paint Shop" template.
-    1. PRINTABLE AREAS: WHITE areas represent the car body.
-    2. NON-PRINTABLE: Transparent/Black areas are void.
-    3. ORIENTATION: Top is Front, Bottom is Back.
-    
-    ${userUploadImages && userUploadImages.length > 0 ? 'Subsequent images are User Reference Images (logos, patterns, or styles).' : ''}
-    
-    TASK:
-    Generate a texture applied to the WHITE areas of the template.
-    
-    INSTRUCTIONS:
-    - Maintain strict geometry of the first image (template).
-    - Apply the style described in the prompt to the template.
-    - ${referenceInstruction}
-    - Style Theme: "${prompt}".
-    - Output: A high-fidelity, 1:1 square composite image.`;
+    const systemPrompt = `I have this car wrap template, I want you to only replace the red parts of the image. Top is front of the car, bottom is back of the car. Left is the left side of the car, most left is bottom left side to up, same for the right, so most right is the bottom of the right side of the car, going up.
+I also provided the tesla logos so you get a feeling of the oriention. It is very important you use the right orientation for the sides. So that objects always appear from top to bottom, so left to right, or right to left depending on the side of the image. Also make sure you fill up only and all of the white parts. Don't leave anything red and don't show the tesla logs in your results from the provided input!
+
+Now I want you to make a Tesla car wrap of: ${prompt}
+
+Additional Instructions:
+- The first image provided is the mask/template described above.
+- If a second image is provided, it is a sketch/drawing from the user on top of the car. Use it as a loose reference for placement and color.
+- If other images are provided, use them as style references or logos to include.`;
 
     parts.push({ text: systemPrompt });
 
