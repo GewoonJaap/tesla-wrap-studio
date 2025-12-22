@@ -26,7 +26,8 @@ import {
   X,
   Paperclip,
   Zap,
-  Cpu
+  Cpu,
+  Pipette
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -78,6 +79,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
   
   const [textContent, setTextContent] = useState('Tesla');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const colorInputRef = useRef<HTMLInputElement>(null);
+  const secondaryColorInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Load persisted model choice
@@ -141,9 +144,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
   // Helper to fetch the Mask Image
   const getMaskImage = async (): Promise<string> => {
-     // Use customReference if user pasted something that acts as a mask (unlikely, but fallback)
-     // Actually, let's enforce using the repo mask for now.
-     
      const maskUrl = `${GITHUB_BASE_URL}/${selectedModel.folderName}/template_ai_mask.png`;
      
      return new Promise((resolve, reject) => {
@@ -162,8 +162,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
             resolve(canvas.toDataURL('image/png'));
         };
         img.onerror = () => {
-            // Fallback for models that might not have the mask yet (like license plate or older ones)
-            // In that case, we might use the standard template, or just reject.
             console.warn("Mask not found, falling back to standard template.");
             const fallbackUrl = `${GITHUB_BASE_URL}/${selectedModel.folderName}/template.png`;
             const fbImg = new Image();
@@ -373,12 +371,57 @@ const Toolbar: React.FC<ToolbarProps> = ({
             </div>
           )}
           <div className="space-y-4">
-            <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Color</h3>
+            <div className="flex items-center justify-between">
+               <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Color</h3>
+               <span className="text-[10px] text-zinc-600 font-mono uppercase">{state.color}</span>
+            </div>
+
             <div className="grid grid-cols-5 gap-2">
-              {PRESET_COLORS.slice(0, 10).map((c) => (
+              {PRESET_COLORS.slice(0, 9).map((c) => (
                 <button key={c} onClick={() => onChange({ color: c })} className={`aspect-square rounded-full border-2 ${state.color === c ? 'border-white scale-110' : 'border-transparent'}`} style={{ backgroundColor: c }} />
               ))}
+              
+              <button 
+                onClick={() => colorInputRef.current?.click()}
+                className={`aspect-square rounded-full border-2 flex items-center justify-center overflow-hidden relative ${!PRESET_COLORS.includes(state.color) ? 'border-white scale-110' : 'border-zinc-700'}`}
+                title="Custom Color"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-red-500 via-green-500 to-blue-500 opacity-80" />
+                <Plus className="w-4 h-4 text-white relative z-10 drop-shadow-md" />
+              </button>
+              
+              <input 
+                ref={colorInputRef}
+                type="color"
+                value={state.color}
+                onChange={(e) => onChange({ color: e.target.value })}
+                className="hidden"
+              />
             </div>
+            
+            {/* Gradient Secondary Color */}
+            {state.tool === ToolType.GRADIENT && (
+               <div className="pt-4 border-t border-zinc-800 animate-in slide-in-from-top-2 fade-in duration-200">
+                  <div className="flex items-center justify-between mb-2">
+                     <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Gradient End</h3>
+                     <span className="text-[10px] text-zinc-600 font-mono uppercase">{state.secondaryColor}</span>
+                  </div>
+                  <div className="flex items-center gap-3 bg-zinc-950/50 p-2 rounded-lg border border-zinc-800 cursor-pointer hover:border-zinc-700 transition-colors" onClick={() => secondaryColorInputRef.current?.click()}>
+                      <div 
+                         className="w-8 h-8 rounded border border-zinc-700 shadow-sm"
+                         style={{ backgroundColor: state.secondaryColor }}
+                      />
+                      <span className="text-xs text-zinc-300">Choose End Color</span>
+                      <input 
+                        ref={secondaryColorInputRef}
+                        type="color" 
+                        value={state.secondaryColor}
+                        onChange={(e) => onChange({ secondaryColor: e.target.value })}
+                        className="hidden"
+                      />
+                  </div>
+               </div>
+            )}
           </div>
         </div>
         <div className="p-6 border-t border-zinc-800">
