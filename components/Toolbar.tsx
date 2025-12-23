@@ -29,7 +29,10 @@ import {
   Cpu,
   Pipette,
   Square,
-  Minus
+  Minus,
+  PaintBucket,
+  BoxSelect,
+  Lasso
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -361,9 +364,13 @@ const Toolbar: React.FC<ToolbarProps> = ({
             <div className="grid grid-cols-4 gap-2">
               <button onClick={() => onChange({ tool: ToolType.BRUSH })} className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${state.tool === ToolType.BRUSH ? 'bg-zinc-800 border-white text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}><Brush className="w-4 h-4" /><span className="text-[10px]">Brush</span></button>
               <button onClick={() => onChange({ tool: ToolType.ERASER })} className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${state.tool === ToolType.ERASER ? 'bg-zinc-800 border-white text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}><Eraser className="w-4 h-4" /><span className="text-[10px]">Eraser</span></button>
+              <button onClick={() => onChange({ tool: ToolType.FILL })} className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${state.tool === ToolType.FILL ? 'bg-zinc-800 border-white text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}><PaintBucket className="w-4 h-4" /><span className="text-[10px]">Fill</span></button>
               <button onClick={() => onChange({ tool: ToolType.GRADIENT })} className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${state.tool === ToolType.GRADIENT ? 'bg-zinc-800 border-white text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}><MoveDiagonal className="w-4 h-4" /><span className="text-[10px]">Grad</span></button>
+              
+              <button onClick={() => onChange({ tool: ToolType.SELECT_RECT })} className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${state.tool === ToolType.SELECT_RECT ? 'bg-zinc-800 border-white text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}><BoxSelect className="w-4 h-4" /><span className="text-[10px]">Rect Sel</span></button>
+              <button onClick={() => onChange({ tool: ToolType.SELECT_LASSO })} className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${state.tool === ToolType.SELECT_LASSO ? 'bg-zinc-800 border-white text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}><Lasso className="w-4 h-4" /><span className="text-[10px]">Lasso</span></button>
+              <button onClick={() => onChange({ tool: ToolType.TRANSFORM })} className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${state.tool === ToolType.TRANSFORM ? 'bg-zinc-800 border-white text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}><Scissors className="w-4 h-4" /><span className="text-[10px]">Cut/Mv</span></button>
               <button onClick={() => onChange({ tool: ToolType.TEXT })} className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${state.tool === ToolType.TEXT ? 'bg-zinc-800 border-white text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}><Type className="w-4 h-4" /><span className="text-[10px]">Text</span></button>
-              <button onClick={() => onChange({ tool: ToolType.TRANSFORM })} className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${state.tool === ToolType.TRANSFORM ? 'bg-zinc-800 border-white text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}><Scissors className="w-4 h-4" /><span className="text-[10px]">Select</span></button>
               
               <button onClick={() => onChange({ tool: ToolType.RECTANGLE })} className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${state.tool === ToolType.RECTANGLE ? 'bg-zinc-800 border-white text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}><Square className="w-4 h-4" /><span className="text-[10px]">Rect</span></button>
               <button onClick={() => onChange({ tool: ToolType.ELLIPSE })} className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${state.tool === ToolType.ELLIPSE ? 'bg-zinc-800 border-white text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}><Circle className="w-4 h-4" /><span className="text-[10px]">Circle</span></button>

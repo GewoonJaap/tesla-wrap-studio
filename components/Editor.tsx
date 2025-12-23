@@ -21,6 +21,11 @@ interface TransformState {
   rotation: number;
 }
 
+interface SelectionState {
+  type: 'rect' | 'poly';
+  points: Point[]; // For rect: [start, end]. For poly: all points.
+}
+
 const Editor = forwardRef<EditorHandle, EditorProps>(({ 
   model, 
   drawingState, 
@@ -72,9 +77,14 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
   const [initialTransform, setInitialTransform] = useState<TransformState | null>(null);
   const [activeHandle, setActiveHandle] = useState<string | null>(null);
 
-  // Selection Tool State
+  // Transform / Scissors Tool Selection
   const [selectionStart, setSelectionStart] = useState<Point | null>(null);
   const [selectionEnd, setSelectionEnd] = useState<Point | null>(null);
+
+  // NEW: Active Selection (Marching Ants)
+  const [activeSelection, setActiveSelection] = useState<SelectionState | null>(null);
+  const [isDefiningSelection, setIsDefiningSelection] = useState(false);
+  const [selectionPointsBuffer, setSelectionPointsBuffer] = useState<Point[]>([]);
 
   // Construct URLs
   const templateUrl = `${GITHUB_BASE_URL}/${model.folderName}/template.png`;
@@ -86,12 +96,27 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
       const canvas = layerCanvasRefs.current.get(activeLayerId);
       const ctx = canvas?.getContext('2d');
       if (canvas && ctx) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        // If it's the background layer, refill with white
-        const activeLayer = layers.find(l => l.id === activeLayerId);
-        if (activeLayer?.name === 'Background') {
-           ctx.fillStyle = '#FFFFFF';
-           ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // If selection is active, only clear inside selection
+        if (activeSelection) {
+            ctx.save();
+            applyClippingPath(ctx, activeSelection);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Refill background if needed
+            const activeLayer = layers.find(l => l.id === activeLayerId);
+            if (activeLayer?.name === 'Background') {
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+            ctx.restore();
+        } else {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // If it's the background layer, refill with white
+            const activeLayer = layers.find(l => l.id === activeLayerId);
+            if (activeLayer?.name === 'Background') {
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
         }
       }
     },
@@ -121,7 +146,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
 
       return canvas.toDataURL('image/png');
     }
-  }), [layers, activeLayerId, canvasSize, model.id]);
+  }), [layers, activeLayerId, canvasSize, model.id, activeSelection]);
 
   // --- Layout Observer for strict Aspect Ratio ---
   useEffect(() => {
@@ -212,6 +237,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
     setTemplateError(false);
     setReferenceError(false);
     setPendingTexture(null);
+    setActiveSelection(null); // Clear selection on model change
 
     // SPECIAL CASE: License Plate
     if (model.id === 'license-plate') {
@@ -305,6 +331,11 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
       ctx.globalCompositeOperation = 'source-over';
 
       ctx.save();
+      // Apply active selection clipping if present
+      if (activeSelection) {
+         applyClippingPath(ctx, activeSelection);
+      }
+
       ctx.translate(centerX, centerY);
       ctx.rotate((transform.rotation * Math.PI) / 180);
       
@@ -421,6 +452,133 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
     }
   }, [isTransforming, transformStart, initialTransform, activeHandle]);
 
+  // --- Helper: Clipping ---
+
+  const applyClippingPath = (ctx: CanvasRenderingContext2D, selection: SelectionState) => {
+    ctx.beginPath();
+    if (selection.type === 'rect') {
+        const [start, end] = selection.points;
+        const x = Math.min(start.x, end.x);
+        const y = Math.min(start.y, end.y);
+        const w = Math.abs(end.x - start.x);
+        const h = Math.abs(end.y - start.y);
+        ctx.rect(x, y, w, h);
+    } else if (selection.type === 'poly') {
+        if (selection.points.length > 2) {
+            ctx.moveTo(selection.points[0].x, selection.points[0].y);
+            for (let i = 1; i < selection.points.length; i++) {
+                ctx.lineTo(selection.points[i].x, selection.points[i].y);
+            }
+            ctx.closePath();
+        }
+    }
+    ctx.clip();
+  };
+
+  // --- Helper: Flood Fill ---
+  const floodFill = (ctx: CanvasRenderingContext2D, startX: number, startY: number, hexColor: string) => {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    
+    // Get image data
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const data = imageData.data;
+
+    // Convert hex color to RGBA
+    const r = parseInt(hexColor.slice(1, 3), 16);
+    const g = parseInt(hexColor.slice(3, 5), 16);
+    const b = parseInt(hexColor.slice(5, 7), 16);
+    const a = 255; // Fully opaque fill
+
+    // Get start pixel color
+    const startPos = (Math.floor(startY) * width + Math.floor(startX)) * 4;
+    const startR = data[startPos];
+    const startG = data[startPos + 1];
+    const startB = data[startPos + 2];
+    const startA = data[startPos + 3];
+
+    // Don't fill if color is the same
+    if (startR === r && startG === g && startB === b && startA === a) return;
+
+    // Helper to check match
+    const matchesStartColor = (pos: number) => {
+        return data[pos] === startR && 
+               data[pos + 1] === startG && 
+               data[pos + 2] === startB && 
+               data[pos + 3] === startA;
+    };
+
+    const colorPixel = (pos: number) => {
+        data[pos] = r;
+        data[pos + 1] = g;
+        data[pos + 2] = b;
+        data[pos + 3] = a;
+    };
+
+    // Standard Stack-based Flood Fill
+    const stack = [[Math.floor(startX), Math.floor(startY)]];
+
+    // Safety limit for stack
+    let iterations = 0;
+    const MAX_ITERATIONS = width * height; 
+
+    // Create a boolean grid to track visited/filled pixels to prevent loops
+    // (Technically standard flood fill doesn't loop if we change color, but this adds safety)
+    const visited = new Int8Array(width * height);
+
+    // If selection is active, create a mask for it
+    let selectionContext: CanvasRenderingContext2D | null = null;
+    if (activeSelection) {
+        const maskCanvas = document.createElement('canvas');
+        maskCanvas.width = width;
+        maskCanvas.height = height;
+        selectionContext = maskCanvas.getContext('2d');
+        if (selectionContext) {
+            selectionContext.fillStyle = '#000000';
+            selectionContext.fillRect(0,0,width,height);
+            selectionContext.globalCompositeOperation = 'destination-out';
+            applyClippingPath(selectionContext, activeSelection);
+            selectionContext.fillStyle = '#FFFFFF';
+            selectionContext.fillRect(0,0,width,height);
+            // Now maskCanvas has transparent pixels inside selection, black outside
+        }
+    }
+
+    const isInsideSelection = (x: number, y: number) => {
+        if (!activeSelection) return true;
+        if (!selectionContext) return true;
+        // Check pixel alpha in mask. If 0 (transparent), it's inside selection (we cleared it)
+        const p = selectionContext.getImageData(x, y, 1, 1).data;
+        return p[3] === 0;
+    };
+
+    while (stack.length) {
+        iterations++;
+        if (iterations > MAX_ITERATIONS) break;
+
+        const [x, y] = stack.pop()!;
+        const pos = (y * width + x) * 4;
+
+        if (x < 0 || x >= width || y < 0 || y >= height) continue;
+        if (visited[y * width + x]) continue;
+        
+        if (matchesStartColor(pos)) {
+             // If selection is active, check bounds
+             if (!isInsideSelection(x, y)) continue;
+
+             colorPixel(pos);
+             visited[y * width + x] = 1;
+
+             stack.push([x + 1, y]);
+             stack.push([x - 1, y]);
+             stack.push([x, y + 1]);
+             stack.push([x, y - 1]);
+        }
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+  };
+
   // --- Drawing & Selection Logic ---
 
   const getPoint = (e: React.MouseEvent | React.TouchEvent): Point | null => {
@@ -451,6 +609,34 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
     const point = getPoint(e);
     if (!point) return;
 
+    // Handle Selection Tools
+    if (drawingState.tool === ToolType.SELECT_RECT) {
+        // If clicking outside, maybe Deselect? For now, start new selection clears old.
+        setActiveSelection(null);
+        setIsDefiningSelection(true);
+        setSelectionPointsBuffer([point, point]); // Start, End
+        setIsDrawing(true);
+        return;
+    }
+
+    if (drawingState.tool === ToolType.SELECT_LASSO) {
+        setActiveSelection(null);
+        setIsDefiningSelection(true);
+        setSelectionPointsBuffer([point]);
+        setIsDrawing(true);
+        return;
+    }
+
+    // Handle Fill
+    if (drawingState.tool === ToolType.FILL) {
+        const canvas = layerCanvasRefs.current.get(activeLayerId);
+        const ctx = canvas?.getContext('2d');
+        if (canvas && ctx) {
+            floodFill(ctx, point.x, point.y, drawingState.color);
+        }
+        return;
+    }
+
     setIsDrawing(true);
 
     if (drawingState.tool === ToolType.GRADIENT) {
@@ -473,6 +659,16 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
     const currentPoint = getPoint(e);
     if (!currentPoint) return;
 
+    // Selection Updates
+    if (drawingState.tool === ToolType.SELECT_RECT) {
+        setSelectionPointsBuffer(prev => [prev[0], currentPoint]);
+        return;
+    }
+    if (drawingState.tool === ToolType.SELECT_LASSO) {
+        setSelectionPointsBuffer(prev => [...prev, currentPoint]);
+        return;
+    }
+
     if (drawingState.tool === ToolType.GRADIENT) {
       setCurrentDrag(currentPoint);
       return;
@@ -494,6 +690,12 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
 
+    ctx.save();
+    // Apply Clipping if selection is active
+    if (activeSelection) {
+        applyClippingPath(ctx, activeSelection);
+    }
+
     ctx.beginPath();
     ctx.moveTo(lastPoint.x, lastPoint.y);
     ctx.lineTo(currentPoint.x, currentPoint.y);
@@ -511,16 +713,45 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
     }
 
     ctx.stroke();
+    ctx.restore(); // Restore clipping
     setLastPoint(currentPoint);
   };
 
   const stopDrawing = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isDrawing) return;
 
+    // Finalize Selection
+    if (drawingState.tool === ToolType.SELECT_RECT) {
+        const [start, end] = selectionPointsBuffer;
+        if (start && end && Math.abs(start.x - end.x) > 5 && Math.abs(start.y - end.y) > 5) {
+            setActiveSelection({ type: 'rect', points: [start, end] });
+        } else {
+            setActiveSelection(null); // Click clears
+        }
+        setIsDefiningSelection(false);
+        setIsDrawing(false);
+        return;
+    }
+    if (drawingState.tool === ToolType.SELECT_LASSO) {
+        if (selectionPointsBuffer.length > 5) {
+             setActiveSelection({ type: 'poly', points: selectionPointsBuffer });
+        } else {
+             setActiveSelection(null); // Click clears
+        }
+        setIsDefiningSelection(false);
+        setIsDrawing(false);
+        return;
+    }
+
     const canvas = layerCanvasRefs.current.get(activeLayerId);
     const ctx = canvas?.getContext('2d');
 
     if (canvas && ctx) {
+        ctx.save();
+        if (activeSelection) {
+            applyClippingPath(ctx, activeSelection);
+        }
+
         // Apply Gradient
         if (drawingState.tool === ToolType.GRADIENT && gradientStart && currentDrag) {
             const start = gradientStart;
@@ -543,6 +774,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
             gradient.addColorStop(1, drawingState.secondaryColor);
 
             ctx.fillStyle = gradient;
+            // Draw gradient rect over whole canvas (it will be clipped if needed)
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             ctx.globalCompositeOperation = prevComposite;
@@ -579,9 +811,13 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
             setLastPoint(null);
             setCurrentDrag(null);
         }
+
+        ctx.restore(); // Restore clipping
     }
     
     // Apply Transform Extraction (Cut pixel data)
+    // NOTE: Transform tool logic ignores activeSelection for its initial cut area definition,
+    // but we should probably respect it? For now, Transform uses its own selectionStart/End logic.
     if (drawingState.tool === ToolType.TRANSFORM && selectionStart && selectionEnd) {
       if (canvas && ctx && containerRef.current) {
         // Normalize coordinates
@@ -652,6 +888,17 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
 
     setIsDrawing(false);
     setLastPoint(null);
+  };
+
+  // Helper to render selection path string
+  const getSelectionPathD = () => {
+    if (activeSelection?.type === 'poly' && activeSelection.points.length > 2) {
+        return `M ${activeSelection.points.map(p => `${p.x / canvasSize.width * 100}% ${p.y / canvasSize.height * 100}%`).join(' L ')} Z`;
+    }
+    if (isDefiningSelection && drawingState.tool === ToolType.SELECT_LASSO && selectionPointsBuffer.length > 0) {
+        return `M ${selectionPointsBuffer.map(p => `${p.x / canvasSize.width * 100}% ${p.y / canvasSize.height * 100}%`).join(' L ')}`;
+    }
+    return '';
   };
 
   return (
@@ -804,7 +1051,9 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
                     width: layoutDims.width || '100%',
                     height: layoutDims.height || 'auto',
                     aspectRatio: `${canvasSize.width} / ${canvasSize.height}`,
-                    cursor: [ToolType.GRADIENT, ToolType.TRANSFORM, ToolType.RECTANGLE, ToolType.ELLIPSE, ToolType.LINE].includes(drawingState.tool) ? 'crosshair' : 'default'
+                    cursor: drawingState.tool === ToolType.FILL 
+                        ? 'alias' 
+                        : [ToolType.GRADIENT, ToolType.TRANSFORM, ToolType.RECTANGLE, ToolType.ELLIPSE, ToolType.LINE, ToolType.SELECT_RECT, ToolType.SELECT_LASSO].includes(drawingState.tool) ? 'crosshair' : 'default'
                 }}
             >
                 {/* Background Fill */}
@@ -896,6 +1145,67 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
                     </marker>
                     </defs>
 
+                    {/* Active Selection (Marching Ants) */}
+                    {(activeSelection || isDefiningSelection) && (
+                         <>
+                             {/* Rect Selection */}
+                             {(activeSelection?.type === 'rect' || (isDefiningSelection && drawingState.tool === ToolType.SELECT_RECT && selectionPointsBuffer.length === 2)) && (
+                                 <rect 
+                                    x={(activeSelection ? Math.min(activeSelection.points[0].x, activeSelection.points[1].x) : Math.min(selectionPointsBuffer[0].x, selectionPointsBuffer[1].x)) / canvasSize.width * 100 + '%'}
+                                    y={(activeSelection ? Math.min(activeSelection.points[0].y, activeSelection.points[1].y) : Math.min(selectionPointsBuffer[0].y, selectionPointsBuffer[1].y)) / canvasSize.height * 100 + '%'}
+                                    width={Math.abs((activeSelection ? activeSelection.points[1].x : selectionPointsBuffer[1].x) - (activeSelection ? activeSelection.points[0].x : selectionPointsBuffer[0].x)) / canvasSize.width * 100 + '%'}
+                                    height={Math.abs((activeSelection ? activeSelection.points[1].y : selectionPointsBuffer[1].y) - (activeSelection ? activeSelection.points[0].y : selectionPointsBuffer[0].y)) / canvasSize.height * 100 + '%'}
+                                    fill="rgba(255, 255, 255, 0.1)"
+                                    stroke="black"
+                                    strokeWidth="1"
+                                    strokeDasharray="4,4"
+                                    vectorEffect="non-scaling-stroke"
+                                    className="animate-[dash_1s_linear_infinite]"
+                                 />
+                             )}
+                             {(activeSelection?.type === 'rect' || (isDefiningSelection && drawingState.tool === ToolType.SELECT_RECT && selectionPointsBuffer.length === 2)) && (
+                                 <rect 
+                                    x={(activeSelection ? Math.min(activeSelection.points[0].x, activeSelection.points[1].x) : Math.min(selectionPointsBuffer[0].x, selectionPointsBuffer[1].x)) / canvasSize.width * 100 + '%'}
+                                    y={(activeSelection ? Math.min(activeSelection.points[0].y, activeSelection.points[1].y) : Math.min(selectionPointsBuffer[0].y, selectionPointsBuffer[1].y)) / canvasSize.height * 100 + '%'}
+                                    width={Math.abs((activeSelection ? activeSelection.points[1].x : selectionPointsBuffer[1].x) - (activeSelection ? activeSelection.points[0].x : selectionPointsBuffer[0].x)) / canvasSize.width * 100 + '%'}
+                                    height={Math.abs((activeSelection ? activeSelection.points[1].y : selectionPointsBuffer[1].y) - (activeSelection ? activeSelection.points[0].y : selectionPointsBuffer[0].y)) / canvasSize.height * 100 + '%'}
+                                    fill="none"
+                                    stroke="white"
+                                    strokeWidth="1"
+                                    strokeDasharray="4,4"
+                                    strokeDashoffset="4"
+                                    vectorEffect="non-scaling-stroke"
+                                    className="animate-[dash_1s_linear_infinite]"
+                                 />
+                             )}
+                             
+                             {/* Lasso Selection */}
+                             {((activeSelection?.type === 'poly') || (isDefiningSelection && drawingState.tool === ToolType.SELECT_LASSO)) && (
+                                <path
+                                    d={getSelectionPathD()}
+                                    fill="rgba(255, 255, 255, 0.1)"
+                                    stroke="black"
+                                    strokeWidth="1"
+                                    strokeDasharray="4,4"
+                                    vectorEffect="non-scaling-stroke"
+                                    className="animate-[dash_1s_linear_infinite]"
+                                />
+                             )}
+                             {((activeSelection?.type === 'poly') || (isDefiningSelection && drawingState.tool === ToolType.SELECT_LASSO)) && (
+                                <path
+                                    d={getSelectionPathD()}
+                                    fill="none"
+                                    stroke="white"
+                                    strokeWidth="1"
+                                    strokeDasharray="4,4"
+                                    strokeDashoffset="4"
+                                    vectorEffect="non-scaling-stroke"
+                                    className="animate-[dash_1s_linear_infinite]"
+                                />
+                             )}
+                         </>
+                    )}
+
                     {/* Gradient Line */}
                     {isDrawing && drawingState.tool === ToolType.GRADIENT && gradientStart && currentDrag && (
                         <line 
@@ -910,7 +1220,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
                         />
                     )}
 
-                    {/* Selection Box */}
+                    {/* Transform/Scissors Box */}
                     {isDrawing && drawingState.tool === ToolType.TRANSFORM && selectionStart && selectionEnd && (
                          <rect 
                             x={Math.min(selectionStart.x, selectionEnd.x) / canvasSize.width * 100 + '%'}
@@ -972,6 +1282,13 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
                     )}
                 </svg>
             </div>
+            <style>{`
+                @keyframes dash {
+                    to {
+                        stroke-dashoffset: 0;
+                    }
+                }
+            `}</style>
         </div>
 
         <LayerPanel 

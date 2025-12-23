@@ -3,6 +3,7 @@ import { Canvas, useLoader } from '@react-three/fiber';
 import { OrbitControls, Stage, Html, useProgress } from '@react-three/drei';
 import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { CarModel } from '../types';
 import { X, Loader2, RotateCw } from 'lucide-react';
 
@@ -24,8 +25,13 @@ function Loader() {
   );
 }
 
-const ModelRender = ({ url, textureMap }: { url: string, textureMap: THREE.Texture }) => {
-  const obj = useLoader(OBJLoader, url);
+const ModelRender = ({ modelUrl, mtlUrl, textureMap }: { modelUrl: string, mtlUrl: string, textureMap: THREE.Texture }) => {
+  const materials = useLoader(MTLLoader, mtlUrl);
+  
+  const obj = useLoader(OBJLoader, modelUrl, (loader) => {
+    materials.preload();
+    loader.setMaterials(materials);
+  });
 
   const scene = useMemo(() => {
     const clone = obj.clone();
@@ -33,6 +39,7 @@ const ModelRender = ({ url, textureMap }: { url: string, textureMap: THREE.Textu
     clone.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.geometry = child.geometry.clone();
+        child.geometry.computeVertexNormals();
 
         const wrapMaterial = new THREE.MeshStandardMaterial({
           map: textureMap,
@@ -45,29 +52,31 @@ const ModelRender = ({ url, textureMap }: { url: string, textureMap: THREE.Textu
         });
 
         if (Array.isArray(child.material)) {
-          const materials = child.material as THREE.Material[];
+          const materialsList = child.material as THREE.Material[];
           
-          // Logic: Sort by string name (low to high) and pick the first one.
-          // This ensures consistent selection based on alphabetical order.
+          // Logic: Sort by string name (low to high) and pick the first one to apply the wrap.
+          // This allows us to target the main body if it is named alphabetically first (e.g. 'Body' vs 'Glass')
           let targetIndex = 0;
-          let lowestName = materials[0].name;
+          let lowestName = materialsList[0].name;
 
-          materials.forEach((mat, index) => {
+          materialsList.forEach((mat, index) => {
             if (mat.name < lowestName) {
                 lowestName = mat.name;
                 targetIndex = index;
             }
           });
 
-          const newMaterials = [...materials];
+          // Create a new array to avoid mutating the original
+          const newMaterials = [...materialsList];
           newMaterials[targetIndex] = wrapMaterial;
           child.material = newMaterials;
           
         } else {
+          // If it's a single material, we assume it's the body part being rendered as a separate mesh.
+          // In some cases this might overwrite windows if they are separate meshes but have a generic name.
+          // Ideally, we would check the material name here too, but for now we apply the wrap to ensure visibility.
           child.material = wrapMaterial;
         }
-        
-        child.geometry.computeVertexNormals();
       }
     });
     return clone;
@@ -87,6 +96,7 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ model, textureData, onClose
   }, [textureData]);
 
   const modelUrl = `https://raw.githubusercontent.com/GewoonJaap/custom-tesla-wraps/master/${model.folderName}/vehicle.obj`;
+  const mtlUrl = `https://raw.githubusercontent.com/GewoonJaap/custom-tesla-wraps/master/${model.folderName}/vehicle.mtl`;
 
   return (
     <div className="fixed inset-0 z-[200] bg-zinc-950 flex flex-col animate-in fade-in duration-300">
@@ -110,7 +120,7 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ model, textureData, onClose
             <Canvas shadows camera={{ position: [5, 2, 5], fov: 45 }}>
                 <Suspense fallback={<Loader />}>
                     <Stage environment="city" intensity={0.5} shadows="contact">
-                        <ModelRender url={modelUrl} textureMap={textureMap} />
+                        <ModelRender modelUrl={modelUrl} mtlUrl={mtlUrl} textureMap={textureMap} />
                     </Stage>
                     <OrbitControls autoRotate autoRotateSpeed={0.5} makeDefault minPolarAngle={0} maxPolarAngle={Math.PI / 1.9} />
                 </Suspense>

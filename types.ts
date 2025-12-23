@@ -1,3 +1,4 @@
+
 export interface CarModel {
   id: string;
   name: string;
@@ -26,7 +27,9 @@ export enum ToolType {
   TEXT = 'TEXT',
   RECTANGLE = 'RECTANGLE',
   ELLIPSE = 'ELLIPSE',
-  LINE = 'LINE'
+  LINE = 'LINE',
+  SELECT_RECT = 'SELECT_RECT',
+  SELECT_LASSO = 'SELECT_LASSO'
 }
 
 export interface DrawingState {
