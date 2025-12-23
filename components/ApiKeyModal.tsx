@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Key, X, Check, ExternalLink, Lock } from 'lucide-react';
+import { Key, X, Check, ExternalLink, Lock, Sparkles } from 'lucide-react';
 
 interface ApiKeyModalProps {
   isOpen: boolean;
@@ -10,10 +10,26 @@ interface ApiKeyModalProps {
 
 const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSave, initialKey }) => {
   const [tempKey, setTempKey] = useState('');
+  const [hasAiStudio, setHasAiStudio] = useState(false);
 
   useEffect(() => {
-    setTempKey(initialKey);
+    setTempKey(initialKey === 'AI_STUDIO_KEY' ? '' : initialKey);
+    // Check if running in an environment with AI Studio integration
+    setHasAiStudio(!!(window as any).aistudio);
   }, [initialKey, isOpen]);
+
+  const handleAiStudioSelect = async () => {
+    try {
+        const aistudio = (window as any).aistudio;
+        if (aistudio) {
+            await aistudio.openSelectKey();
+            // We use a placeholder to indicate the key is managed by the environment
+            onSave('AI_STUDIO_KEY'); 
+        }
+    } catch (e) {
+        console.error("Failed to open AI Studio key selector", e);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -39,8 +55,32 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSave, init
         <div className="p-6 space-y-6">
           <div className="space-y-3">
              <p className="text-sm text-zinc-400 leading-relaxed">
-               To generate custom AI textures, this app requires a <strong>Google Gemini API Key</strong>. The key is stored locally in your browser and is never sent to our servers.
+               To generate custom AI textures, this app requires a <strong>Google Gemini API Key</strong>.
              </p>
+          </div>
+          
+          {hasAiStudio && (
+              <div className="bg-zinc-950/50 border border-zinc-800 rounded-lg p-4 mb-4">
+                  <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3">
+                    Fast Setup
+                  </h3>
+                  <button
+                    onClick={handleAiStudioSelect}
+                    className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white text-sm font-medium rounded-lg shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95"
+                  >
+                      <Sparkles className="w-4 h-4" />
+                      Select Key via AI Studio
+                  </button>
+                  <p className="text-[10px] text-zinc-500 mt-2 text-center">
+                      Uses the API key from your AI Studio session securely.
+                  </p>
+              </div>
+          )}
+
+          <div className="relative flex py-1 items-center">
+            <div className="flex-grow border-t border-zinc-800"></div>
+            <span className="flex-shrink-0 mx-4 text-xs text-zinc-600 font-medium">OR ENTER MANUALLY</span>
+            <div className="flex-grow border-t border-zinc-800"></div>
           </div>
 
           <div className="space-y-2">

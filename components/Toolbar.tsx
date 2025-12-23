@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CarModel, DrawingState, ToolType } from '../types';
-import { PRESET_COLORS, GITHUB_BASE_URL } from '../constants';
+import { PRESET_COLORS, GITHUB_BASE_URL, GOOGLE_FONTS } from '../constants';
 import { generateTexture } from '../services/geminiService';
 import { 
   Brush, 
@@ -32,7 +32,14 @@ import {
   Minus,
   PaintBucket,
   BoxSelect,
-  Lasso
+  Lasso,
+  Check,
+  Globe,
+  Coffee,
+  Sun,
+  History,
+  Save,
+  Bookmark
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -47,11 +54,6 @@ interface ToolbarProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
-const FONTS = [
-  'Inter', 'Arial', 'Helvetica', 'Times New Roman', 'Courier New', 
-  'Verdana', 'Georgia', 'Garamond', 'Comic Sans MS', 'Trebuchet MS', 'Impact'
-];
 
 const GEN_MODELS = [
   { id: 'gemini-2.5-flash-image', name: 'Standard (Flash)', icon: Zap, description: 'Fast, efficient generation' },
@@ -72,26 +74,47 @@ const Toolbar: React.FC<ToolbarProps> = ({
 }) => {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [showColorPicker, setShowColorPicker] = useState(false);
-  const [showSecondaryColorPicker, setShowSecondaryColorPicker] = useState(false);
   
-  // Model Selection
+  // Model & Batch Selection
   const [selectedGenModel, setSelectedGenModel] = useState<string>(GEN_MODELS[0].id);
+  const [batchSize, setBatchSize] = useState<number>(1);
+  const [useGrounding, setUseGrounding] = useState(false);
+  
+  // Generated Results State
+  const [generatedVariants, setGeneratedVariants] = useState<string[]>([]);
+  const [showVariants, setShowVariants] = useState(false);
 
   // customReference handles Paste, uploadedImages handles Button upload
   const [customReference, setCustomReference] = useState<string | null>(null);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  
+  // Color History & Saved State
+  const [recentColors, setRecentColors] = useState<string[]>([]);
+  const [savedColors, setSavedColors] = useState<string[]>([]);
+  const historyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const [textContent, setTextContent] = useState('Tesla');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const colorInputRef = useRef<HTMLInputElement>(null);
   const secondaryColorInputRef = useRef<HTMLInputElement>(null);
 
+  const isAiStudioKey = apiKey === 'AI_STUDIO_KEY';
+
   useEffect(() => {
     // Load persisted model choice
     const savedModel = localStorage.getItem('tesla_wrap_gen_model');
     if (savedModel && GEN_MODELS.some(m => m.id === savedModel)) {
       setSelectedGenModel(savedModel);
+    }
+
+    // Load persisted colors
+    try {
+        const loadedSaved = JSON.parse(localStorage.getItem('tesla_saved_colors') || '[]');
+        setSavedColors(loadedSaved);
+        const loadedHistory = JSON.parse(localStorage.getItem('tesla_color_history') || '[]');
+        setRecentColors(loadedHistory);
+    } catch (e) {
+        console.warn("Failed to load color data", e);
     }
 
     const handlePaste = (e: ClipboardEvent) => {
@@ -115,6 +138,61 @@ const Toolbar: React.FC<ToolbarProps> = ({
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
   }, []);
+
+  // --- Dynamic Font Loader ---
+  useEffect(() => {
+    if (state.tool === ToolType.TEXT && state.fontFamily) {
+       const fontName = state.fontFamily;
+       // Check if it's a Google Font
+       if (GOOGLE_FONTS.includes(fontName)) {
+           const linkId = `font-${fontName.replace(/\s+/g, '-')}`;
+           if (!document.getElementById(linkId)) {
+               const link = document.createElement('link');
+               link.id = linkId;
+               link.href = `https://fonts.googleapis.com/css2?family=${fontName.replace(/\s+/g, '+')}:ital,wght@0,400;0,700;1,400&display=swap`;
+               link.rel = 'stylesheet';
+               document.head.appendChild(link);
+           }
+       }
+    }
+  }, [state.fontFamily, state.tool]);
+
+  // --- Color History Logic ---
+  useEffect(() => {
+    // Debounce the history add to prevent adding every intermediate color while dragging
+    if (historyTimeoutRef.current) clearTimeout(historyTimeoutRef.current);
+
+    historyTimeoutRef.current = setTimeout(() => {
+        setRecentColors(prev => {
+            const newColor = state.color;
+            // Avoid duplicates at the top of the stack
+            if (prev[0] === newColor) return prev;
+            
+            const updated = [newColor, ...prev.filter(c => c !== newColor)].slice(0, 7);
+            localStorage.setItem('tesla_color_history', JSON.stringify(updated));
+            return updated;
+        });
+    }, 1000);
+
+    return () => {
+        if (historyTimeoutRef.current) clearTimeout(historyTimeoutRef.current);
+    };
+  }, [state.color]);
+
+  const handleSaveColor = () => {
+      if (!savedColors.includes(state.color)) {
+          const updated = [...savedColors, state.color];
+          setSavedColors(updated);
+          localStorage.setItem('tesla_saved_colors', JSON.stringify(updated));
+      }
+  };
+
+  const handleDeleteSavedColor = (colorToDelete: string, e: React.MouseEvent) => {
+      e.preventDefault(); // Prevent context menu
+      const updated = savedColors.filter(c => c !== colorToDelete);
+      setSavedColors(updated);
+      localStorage.setItem('tesla_saved_colors', JSON.stringify(updated));
+  };
 
   const handleModelSelect = (modelId: string) => {
     setSelectedGenModel(modelId);
@@ -149,6 +227,20 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
   // Helper to fetch the Mask Image
   const getMaskImage = async (): Promise<string> => {
+     // Handle License Plate: No external template, just a white canvas
+     if (selectedModel.id === 'license-plate') {
+        const canvas = document.createElement('canvas');
+        canvas.width = 420;
+        canvas.height = 100;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, 420, 100);
+            return Promise.resolve(canvas.toDataURL('image/png'));
+        }
+        return Promise.reject(new Error("Failed to create license plate mask"));
+     }
+
      const maskUrl = `${GITHUB_BASE_URL}/${selectedModel.folderName}/template_ai_mask.png`;
      
      return new Promise((resolve, reject) => {
@@ -194,6 +286,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
     if (!prompt.trim()) return;
     if (!apiKey) { onOpenApiKeyModal(); return; }
     setIsGenerating(true);
+    setGeneratedVariants([]);
     try {
       // 1. Get the Mask (AI Mask)
       const maskData = await getMaskImage();
@@ -202,17 +295,25 @@ const Toolbar: React.FC<ToolbarProps> = ({
       const sketchData = getCanvasData();
 
       // 3. Generate
-      const textureUrl = await generateTexture(
+      const results = await generateTexture(
         prompt, 
         maskData, 
         sketchData,
         apiKey, 
         uploadedImages,
-        selectedGenModel
+        selectedGenModel,
+        batchSize,
+        useGrounding,
+        selectedModel.id
       );
       
-      onApplyTexture(textureUrl);
-      onClose(); // Auto-close on mobile
+      if (results.length === 1) {
+          onApplyTexture(results[0]);
+          onClose(); // Auto-close on mobile
+      } else if (results.length > 1) {
+          setGeneratedVariants(results);
+          setShowVariants(true);
+      }
     } catch (e: any) {
       alert(`Failed: ${e.message}`);
     } finally {
@@ -220,39 +321,73 @@ const Toolbar: React.FC<ToolbarProps> = ({
     }
   };
 
-  const handleAddText = () => {
+  const handleSelectVariant = (texture: string) => {
+    onApplyTexture(texture);
+    setShowVariants(false);
+    setGeneratedVariants([]);
+    onClose(); // Auto-close on mobile
+  };
+
+  const handleAddText = async () => {
     if (!textContent.trim()) return;
+
+    if (state.fontFamily && GOOGLE_FONTS.includes(state.fontFamily)) {
+        try {
+            await document.fonts.load(`${state.isBold ? 'bold' : ''} ${state.isItalic ? 'italic' : ''} 1em "${state.fontFamily}"`);
+        } catch(e) {
+            console.warn("Font loading check failed, attempting render anyway", e);
+        }
+    }
+
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const fontString = `${state.isItalic ? 'italic' : ''} ${state.isBold ? 'bold' : ''} ${state.fontSize * 5}px "${state.fontFamily}"`;
+
+    const fontSize = state.fontSize * 4; 
+    const fontString = `${state.isItalic ? 'italic' : ''} ${state.isBold ? 'bold' : ''} ${fontSize}px "${state.fontFamily}", sans-serif`;
+    
     ctx.font = fontString;
     const metrics = ctx.measureText(textContent);
-    const padding = state.hasShadow ? state.shadowBlur * 2 + 10 : 0;
-    const width = Math.ceil(metrics.width) + padding * 2;
-    const height = Math.ceil(state.fontSize * 5 * 1.5) + padding * 2; 
+    
+    const shadowPadding = state.hasShadow ? state.shadowBlur * 2 + 20 : 0;
+    const textHeight = fontSize * 1.2; 
+    
+    const width = Math.ceil(metrics.width) + shadowPadding * 2 + 50; 
+    const height = Math.ceil(textHeight) + shadowPadding * 2 + 50;
+    
     canvas.width = width;
     canvas.height = height;
+    
     ctx.font = fontString;
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'center';
+    
+    const centerX = width / 2;
+    const centerY = height / 2;
+
     if (state.hasShadow) {
         ctx.shadowColor = state.shadowColor;
         ctx.shadowBlur = state.shadowBlur;
-        ctx.shadowOffsetX = 2;
-        ctx.shadowOffsetY = 2;
+        ctx.shadowOffsetX = 4;
+        ctx.shadowOffsetY = 4;
     }
+
     ctx.fillStyle = state.color;
-    ctx.fillText(textContent, width / 2, height / 2);
+    ctx.fillText(textContent, centerX, centerY);
+    
     onApplyTexture(canvas.toDataURL());
-    onClose(); // Auto-close on mobile
+    onClose(); 
   };
 
   const handleApplyExample = (filename: string) => {
     const url = `${GITHUB_BASE_URL}/${selectedModel.folderName}/example/${filename}`;
     onApplyTexture(url);
-    onClose(); // Auto-close on mobile
+    onClose(); 
   };
+
+  const placeholderText = selectedModel.id === 'license-plate' 
+     ? "Describe your license plate style (e.g. 'Cyberpunk neon California plate', 'Matte black minimalist')..."
+     : "Describe the style (e.g. 'Cyberpunk pattern using the uploaded logos')...";
 
   return (
     <>
@@ -270,9 +405,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
               <Sparkles className="w-5 h-5 text-purple-400" />
               <h2 className="text-sm font-bold text-zinc-100 uppercase tracking-wider">AI Texture Gen</h2>
             </div>
-            <button onClick={onOpenApiKeyModal} className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-colors ${apiKey ? 'text-green-400 bg-green-400/10 hover:bg-green-400/20' : 'text-zinc-400 bg-zinc-800 hover:text-white'}`}>
+            <button onClick={onOpenApiKeyModal} className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-colors ${apiKey ? (isAiStudioKey ? 'text-blue-400 bg-blue-400/10 hover:bg-blue-400/20' : 'text-green-400 bg-green-400/10 hover:bg-green-400/20') : 'text-zinc-400 bg-zinc-800 hover:text-white'}`}>
                 {apiKey ? <Key className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
-                {apiKey ? 'Key Set' : 'Set Key'}
+                {apiKey ? (isAiStudioKey ? 'AI Studio' : 'Key Set') : 'Set Key'}
             </button>
           </div>
 
@@ -292,6 +427,25 @@ const Toolbar: React.FC<ToolbarProps> = ({
                   <Cpu className="w-3 h-3" />
                 </div>
              </div>
+             
+             {/* Search Grounding Toggle (Pro Only) */}
+             {selectedGenModel === 'gemini-3-pro-image-preview' && (
+                <div className="mt-2 flex items-center gap-2 px-1 animate-in slide-in-from-top-1 fade-in duration-200">
+                    <button 
+                        onClick={() => setUseGrounding(!useGrounding)}
+                        className={`flex items-center gap-2 text-xs transition-colors ${useGrounding ? 'text-blue-400' : 'text-zinc-500 hover:text-zinc-400'}`}
+                    >
+                        <div className={`w-3.5 h-3.5 border rounded flex items-center justify-center transition-colors ${useGrounding ? 'bg-blue-500 border-blue-500' : 'border-zinc-600 bg-transparent'}`}>
+                            {useGrounding && <Check className="w-2.5 h-2.5 text-black" />}
+                        </div>
+                        <span className="flex items-center gap-1.5">
+                           <Globe className="w-3 h-3" />
+                           Google Search Grounding
+                        </span>
+                    </button>
+                </div>
+             )}
+             
              <div className="text-[10px] text-zinc-500 mt-1 px-1">
                {GEN_MODELS.find(m => m.id === selectedGenModel)?.description}
              </div>
@@ -341,10 +495,37 @@ const Toolbar: React.FC<ToolbarProps> = ({
              )}
           </div>
 
-          <textarea className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-3 text-sm text-white resize-none outline-none focus:ring-2 focus:ring-purple-500/50" rows={3} placeholder="Describe the style (e.g. 'Cyberpunk pattern using the uploaded logos')..." value={prompt} onChange={(e) => setPrompt(e.target.value)} />
-          <button onClick={handleGenerate} disabled={isGenerating || !prompt} className="w-full mt-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-sm font-medium py-2 rounded-lg flex items-center justify-center gap-2">
-            {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Generate
-          </button>
+          <textarea 
+            className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-3 text-sm text-white resize-none outline-none focus:ring-2 focus:ring-purple-500/50" 
+            rows={3} 
+            placeholder={placeholderText}
+            value={prompt} 
+            onChange={(e) => setPrompt(e.target.value)} 
+          />
+          
+          <div className="mt-3 flex items-center justify-between gap-3">
+             <div className="flex bg-zinc-950 border border-zinc-800 rounded-lg p-0.5 shrink-0">
+                {[1, 2, 4].map((count) => (
+                    <button
+                        key={count}
+                        onClick={() => setBatchSize(count)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                            batchSize === count 
+                            ? 'bg-zinc-800 text-white shadow-sm' 
+                            : 'text-zinc-500 hover:text-zinc-300'
+                        }`}
+                        title={`Generate ${count} image${count > 1 ? 's' : ''}`}
+                    >
+                        {count}
+                    </button>
+                ))}
+             </div>
+             
+             <button onClick={handleGenerate} disabled={isGenerating || !prompt} className="flex-1 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-sm font-medium py-2 rounded-lg flex items-center justify-center gap-2">
+                {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Generate
+             </button>
+          </div>
+
         </div>
         {selectedModel.examples.length > 0 && (
           <div className="p-6 border-b border-zinc-800">
@@ -377,40 +558,217 @@ const Toolbar: React.FC<ToolbarProps> = ({
               <button onClick={() => onChange({ tool: ToolType.LINE })} className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${state.tool === ToolType.LINE ? 'bg-zinc-800 border-white text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}><Minus className="w-4 h-4 -rotate-45" /><span className="text-[10px]">Line</span></button>
             </div>
           </div>
+          
+          {/* Enhanced Text Tool Panel */}
           {state.tool === ToolType.TEXT && (
-            <div className="space-y-3 p-3 bg-zinc-950 rounded-lg border border-zinc-800">
-              <textarea value={textContent} onChange={(e) => setTextContent(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-sm text-white" rows={2} />
-              <button onClick={handleAddText} className="w-full py-2 bg-blue-600 text-white rounded text-sm">Add Text Layer</button>
+            <div className="space-y-4 p-4 bg-zinc-950 rounded-xl border border-zinc-800 animate-in slide-in-from-left-4 duration-300">
+              <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Text Settings</h3>
+              
+              {/* Font Family */}
+              <div className="space-y-1">
+                 <label className="text-[10px] text-zinc-400">Font Family</label>
+                 <select 
+                    value={state.fontFamily} 
+                    onChange={(e) => onChange({ fontFamily: e.target.value })}
+                    className="w-full bg-zinc-900 border border-zinc-700 text-zinc-200 text-xs rounded-lg px-2 py-2 outline-none focus:border-blue-500"
+                    style={{ fontFamily: state.fontFamily }}
+                 >
+                    {GOOGLE_FONTS.map(font => (
+                        <option key={font} value={font} style={{ fontFamily: font }}>{font}</option>
+                    ))}
+                 </select>
+              </div>
+
+              {/* Font Size */}
+              <div className="space-y-1">
+                 <div className="flex justify-between">
+                     <label className="text-[10px] text-zinc-400">Size</label>
+                     <span className="text-[10px] text-zinc-400">{state.fontSize}px</span>
+                 </div>
+                 <input 
+                    type="range" 
+                    min="10" 
+                    max="200" 
+                    value={state.fontSize} 
+                    onChange={(e) => onChange({ fontSize: parseInt(e.target.value) })}
+                    className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                 />
+              </div>
+
+              {/* Style Toggles */}
+              <div className="flex gap-2">
+                 <button 
+                    onClick={() => onChange({ isBold: !state.isBold })}
+                    className={`flex-1 py-1.5 rounded-lg border text-xs font-bold transition-all ${state.isBold ? 'bg-blue-600 border-blue-600 text-white' : 'bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-white'}`}
+                 >
+                    B
+                 </button>
+                 <button 
+                    onClick={() => onChange({ isItalic: !state.isItalic })}
+                    className={`flex-1 py-1.5 rounded-lg border text-xs italic transition-all ${state.isItalic ? 'bg-blue-600 border-blue-600 text-white' : 'bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-white'}`}
+                 >
+                    I
+                 </button>
+              </div>
+
+              {/* Shadow Toggle */}
+              <div className="pt-2 border-t border-zinc-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                     <label className="text-[10px] text-zinc-400 flex items-center gap-1">
+                        <Sun className="w-3 h-3"/> Drop Shadow
+                     </label>
+                     <button 
+                        onClick={() => onChange({ hasShadow: !state.hasShadow })}
+                        className={`w-8 h-4 rounded-full transition-colors relative ${state.hasShadow ? 'bg-blue-600' : 'bg-zinc-700'}`}
+                     >
+                        <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${state.hasShadow ? 'translate-x-4' : 'translate-x-0'}`} />
+                     </button>
+                  </div>
+                  
+                  {state.hasShadow && (
+                      <div className="flex gap-2 items-center animate-in fade-in duration-200">
+                          <input 
+                            type="range" 
+                            min="0" max="50" 
+                            value={state.shadowBlur} 
+                            onChange={(e) => onChange({ shadowBlur: parseInt(e.target.value) })}
+                            className="flex-1 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-zinc-400"
+                            title="Shadow Blur"
+                          />
+                          <input 
+                            type="color"
+                            value={state.shadowColor}
+                            onChange={(e) => onChange({ shadowColor: e.target.value })}
+                            className="w-6 h-6 rounded overflow-hidden border-none p-0 bg-transparent cursor-pointer"
+                            title="Shadow Color"
+                          />
+                      </div>
+                  )}
+              </div>
+
+              {/* Text Input */}
+              <div className="space-y-2 pt-2 border-t border-zinc-800">
+                <textarea 
+                    value={textContent} 
+                    onChange={(e) => setTextContent(e.target.value)} 
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-sm text-white focus:border-blue-500 focus:outline-none resize-none" 
+                    rows={2} 
+                    placeholder="Enter text..."
+                    style={{ fontFamily: state.fontFamily, fontWeight: state.isBold ? 'bold' : 'normal', fontStyle: state.isItalic ? 'italic' : 'normal' }}
+                />
+                <button 
+                    onClick={handleAddText} 
+                    className="w-full py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-lg text-sm font-medium shadow-lg transition-all active:scale-95"
+                >
+                    Add Text Layer
+                </button>
+              </div>
             </div>
           )}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-               <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Color</h3>
-               <span className="text-[10px] text-zinc-600 font-mono uppercase">{state.color}</span>
-            </div>
 
-            <div className="grid grid-cols-5 gap-2">
-              {PRESET_COLORS.slice(0, 9).map((c) => (
-                <button key={c} onClick={() => onChange({ color: c })} className={`aspect-square rounded-full border-2 ${state.color === c ? 'border-white scale-110' : 'border-transparent'}`} style={{ backgroundColor: c }} />
-              ))}
-              
-              <button 
-                onClick={() => colorInputRef.current?.click()}
-                className={`aspect-square rounded-full border-2 flex items-center justify-center overflow-hidden relative ${!PRESET_COLORS.includes(state.color) ? 'border-white scale-110' : 'border-zinc-700'}`}
-                title="Custom Color"
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-red-500 via-green-500 to-blue-500 opacity-80" />
-                <Plus className="w-4 h-4 text-white relative z-10 drop-shadow-md" />
-              </button>
-              
-              <input 
-                ref={colorInputRef}
-                type="color"
-                value={state.color}
-                onChange={(e) => onChange({ color: e.target.value })}
-                className="hidden"
-              />
-            </div>
+          <div className="space-y-3">
+             <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Color Palette</h3>
+             </div>
+             
+             {/* Current Color Active Display */}
+             <div className="bg-zinc-950/50 p-2 rounded-xl border border-zinc-800 flex items-center gap-3">
+                 <div 
+                    onClick={() => colorInputRef.current?.click()}
+                    className="w-10 h-10 rounded-lg border-2 border-white shadow-lg cursor-pointer hover:scale-105 transition-transform relative overflow-hidden group" 
+                    style={{ backgroundColor: state.color }}
+                 >
+                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <Pipette className="w-4 h-4 text-white drop-shadow-md" />
+                    </div>
+                 </div>
+                 <div className="flex-1 min-w-0">
+                    <div className="text-[10px] text-zinc-500 font-medium uppercase mb-0.5">Active</div>
+                    <div className="flex items-center gap-2">
+                        <code className="text-xs font-mono text-zinc-300">{state.color}</code>
+                        <input 
+                            ref={colorInputRef}
+                            type="color"
+                            value={state.color}
+                            onChange={(e) => onChange({ color: e.target.value })}
+                            className="w-0 h-0 opacity-0 absolute"
+                        />
+                    </div>
+                 </div>
+                 <button 
+                    onClick={handleSaveColor}
+                    className="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white rounded-lg transition-colors"
+                    title="Save to palette"
+                 >
+                     <Save className="w-4 h-4" />
+                 </button>
+             </div>
+
+             {/* Recent History */}
+             {recentColors.length > 0 && (
+                <div className="space-y-1.5 animate-in slide-in-from-left-2 duration-300">
+                    <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 uppercase font-medium">
+                        <History className="w-3 h-3" /> Recent
+                    </div>
+                    <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+                        {recentColors.map((c, i) => (
+                            <button 
+                                key={i} 
+                                onClick={() => onChange({ color: c })} 
+                                className={`w-6 h-6 rounded-full border border-zinc-700 shrink-0 hover:scale-110 transition-transform ${state.color === c ? 'ring-2 ring-white ring-offset-1 ring-offset-zinc-900' : ''}`}
+                                style={{ backgroundColor: c }}
+                            />
+                        ))}
+                    </div>
+                </div>
+             )}
+
+             {/* Saved Colors */}
+             <div className="space-y-1.5">
+                 <div className="flex items-center justify-between text-[10px] text-zinc-500 uppercase font-medium">
+                     <span className="flex items-center gap-1.5"><Bookmark className="w-3 h-3" /> Saved</span>
+                     {savedColors.length > 0 && <span className="text-[9px] opacity-70">Right click to delete</span>}
+                 </div>
+                 
+                 <div className="grid grid-cols-7 gap-1.5">
+                     {savedColors.map((c, i) => (
+                         <button 
+                             key={i} 
+                             onClick={() => onChange({ color: c })} 
+                             onContextMenu={(e) => handleDeleteSavedColor(c, e)}
+                             className={`aspect-square rounded-md border border-zinc-700 hover:scale-110 transition-transform relative group ${state.color === c ? 'ring-2 ring-white ring-offset-1 ring-offset-zinc-900 z-10' : ''}`}
+                             style={{ backgroundColor: c }}
+                             title="Right click to delete"
+                         />
+                     ))}
+                     {savedColors.length === 0 && (
+                         <button onClick={handleSaveColor} className="col-span-full py-2 text-xs text-zinc-600 border border-dashed border-zinc-800 rounded-lg hover:border-zinc-600 hover:text-zinc-400 transition-colors">
+                             Save active color
+                         </button>
+                     )}
+                 </div>
+             </div>
+
+             {/* Presets */}
+             <div className="space-y-1.5 pt-2 border-t border-zinc-800">
+                <div className="text-[10px] text-zinc-500 uppercase font-medium">Presets</div>
+                <div className="grid grid-cols-8 gap-1.5">
+                    {PRESET_COLORS.map((c) => (
+                        <button 
+                            key={c} 
+                            onClick={() => onChange({ color: c })} 
+                            className={`aspect-square rounded-full border border-zinc-700 hover:scale-110 transition-transform ${state.color === c ? 'ring-2 ring-white ring-offset-1 ring-offset-zinc-900 z-10' : ''}`} 
+                            style={{ backgroundColor: c }} 
+                        />
+                    ))}
+                    <button 
+                        onClick={() => colorInputRef.current?.click()}
+                        className="aspect-square rounded-full border border-zinc-700 bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors"
+                    >
+                        <Plus className="w-3 h-3" />
+                    </button>
+                </div>
+             </div>
             
             {/* Gradient Secondary Color */}
             {state.tool === ToolType.GRADIENT && (
@@ -437,10 +795,57 @@ const Toolbar: React.FC<ToolbarProps> = ({
             )}
           </div>
         </div>
-        <div className="p-6 border-t border-zinc-800">
-          <button onClick={onClear} className="w-full border border-red-500/20 text-red-400 py-2 rounded-lg text-sm flex items-center justify-center gap-2"><RotateCcw className="w-4 h-4" /> Clear Layer</button>
+        <div className="p-6 border-t border-zinc-800 space-y-3">
+          <div className="xl:hidden">
+              <a
+                href="https://buymeacoffee.com/mrproper"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2 bg-[#FFDD00] hover:bg-[#FFDD00]/90 text-black py-2 rounded-lg text-sm font-medium transition-colors mb-3 shadow-lg shadow-yellow-900/10"
+              >
+                <Coffee className="w-4 h-4" />
+                <span>Buy me a coffee</span>
+              </a>
+          </div>
+          <button onClick={onClear} className="w-full border border-red-500/20 text-red-400 py-2 rounded-lg text-sm flex items-center justify-center gap-2 hover:bg-red-500/10 transition-colors"><RotateCcw className="w-4 h-4" /> Clear Layer</button>
         </div>
       </aside>
+
+      {/* Result Selection Modal */}
+      {showVariants && generatedVariants.length > 0 && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="w-full max-w-4xl flex flex-col max-h-[90vh]">
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <h2 className="text-2xl font-bold text-white">Select a Variation</h2>
+                        <p className="text-zinc-400 text-sm mt-1">Choose the generation you want to apply to your vehicle.</p>
+                    </div>
+                    <button 
+                        onClick={() => { setShowVariants(false); setGeneratedVariants([]); }}
+                        className="p-2 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white transition-colors"
+                    >
+                        <X className="w-6 h-6" />
+                    </button>
+                </div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 overflow-y-auto p-2 scrollbar-thin">
+                    {generatedVariants.map((variant, idx) => (
+                        <div key={idx} className="group relative aspect-square bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800 hover:border-purple-500 transition-all cursor-pointer shadow-lg hover:shadow-purple-500/20 hover:scale-[1.02]" onClick={() => handleSelectVariant(variant)}>
+                             <img src={variant} alt={`Variant ${idx + 1}`} className="w-full h-full object-contain p-2" />
+                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                 <div className="bg-purple-600 text-white px-4 py-2 rounded-full opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all font-medium text-sm shadow-xl flex items-center gap-2">
+                                     <Check className="w-4 h-4" /> Select
+                                 </div>
+                             </div>
+                             <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded backdrop-blur-sm border border-white/10">
+                                 #{idx + 1}
+                             </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+      )}
     </>
   );
 };

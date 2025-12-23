@@ -43,3 +43,12 @@ export const PRESET_COLORS = [
   '#008000', '#800080', '#008080', 
   '#000080'
 ];
+
+export const GOOGLE_FONTS = [
+  'Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 
+  'Oswald', 'Raleway', 'Poppins', 'Merriweather', 
+  'Playfair Display', 'Rubik', 'Ubuntu', 'Dancing Script', 
+  'Pacifico', 'Bangers', 'Creepster', 'Monoton', 'Lobster', 
+  'Permanent Marker', 'Anton', 'Bebas Neue', 'Abril Fatface',
+  'Righteous', 'Orbitron', 'Press Start 2P', 'Fjalla One'
+];
