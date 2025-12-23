@@ -55,7 +55,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
   const [isDrawing, setIsDrawing] = useState(false);
   const [lastPoint, setLastPoint] = useState<Point | null>(null);
 
-  // Gradient State
+  // Gradient & Shape State
   const [gradientStart, setGradientStart] = useState<Point | null>(null);
   const [currentDrag, setCurrentDrag] = useState<Point | null>(null);
 
@@ -459,6 +459,9 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
     } else if (drawingState.tool === ToolType.TRANSFORM) {
       setSelectionStart(point);
       setSelectionEnd(point);
+    } else if ([ToolType.RECTANGLE, ToolType.ELLIPSE, ToolType.LINE].includes(drawingState.tool)) {
+      setLastPoint(point);
+      setCurrentDrag(point);
     } else {
       setLastPoint(point);
     }
@@ -478,6 +481,11 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
     if (drawingState.tool === ToolType.TRANSFORM) {
       setSelectionEnd(currentPoint);
       return;
+    }
+
+    if ([ToolType.RECTANGLE, ToolType.ELLIPSE, ToolType.LINE].includes(drawingState.tool)) {
+        setCurrentDrag(currentPoint);
+        return;
     }
 
     if (!lastPoint) return;
@@ -509,45 +517,72 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
   const stopDrawing = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isDrawing) return;
 
-    // Apply Gradient
-    if (drawingState.tool === ToolType.GRADIENT && gradientStart && currentDrag) {
-      const canvas = layerCanvasRefs.current.get(activeLayerId);
-      const ctx = canvas?.getContext('2d');
-      if (canvas && ctx) {
-        const start = gradientStart;
-        const end = currentDrag;
-        const prevComposite = ctx.globalCompositeOperation;
-        const prevAlpha = ctx.globalAlpha;
-        
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.globalAlpha = drawingState.opacity;
+    const canvas = layerCanvasRefs.current.get(activeLayerId);
+    const ctx = canvas?.getContext('2d');
 
-        let gradient;
-        if (drawingState.gradientType === 'linear') {
-          gradient = ctx.createLinearGradient(start.x, start.y, end.x, end.y);
-        } else {
-          const r = Math.hypot(end.x - start.x, end.y - start.y);
-          gradient = ctx.createRadialGradient(start.x, start.y, 0, start.x, start.y, r);
+    if (canvas && ctx) {
+        // Apply Gradient
+        if (drawingState.tool === ToolType.GRADIENT && gradientStart && currentDrag) {
+            const start = gradientStart;
+            const end = currentDrag;
+            const prevComposite = ctx.globalCompositeOperation;
+            const prevAlpha = ctx.globalAlpha;
+            
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.globalAlpha = drawingState.opacity;
+
+            let gradient;
+            if (drawingState.gradientType === 'linear') {
+            gradient = ctx.createLinearGradient(start.x, start.y, end.x, end.y);
+            } else {
+            const r = Math.hypot(end.x - start.x, end.y - start.y);
+            gradient = ctx.createRadialGradient(start.x, start.y, 0, start.x, start.y, r);
+            }
+
+            gradient.addColorStop(0, drawingState.color);
+            gradient.addColorStop(1, drawingState.secondaryColor);
+
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.globalCompositeOperation = prevComposite;
+            ctx.globalAlpha = prevAlpha;
+            setGradientStart(null);
+            setCurrentDrag(null);
         }
+        
+        // Apply Shapes
+        if ([ToolType.RECTANGLE, ToolType.ELLIPSE, ToolType.LINE].includes(drawingState.tool) && lastPoint && currentDrag) {
+            ctx.beginPath();
+            ctx.strokeStyle = drawingState.color;
+            ctx.lineWidth = drawingState.brushSize;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.globalAlpha = drawingState.opacity;
+            ctx.globalCompositeOperation = 'source-over';
 
-        gradient.addColorStop(0, drawingState.color);
-        gradient.addColorStop(1, drawingState.secondaryColor);
-
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        ctx.globalCompositeOperation = prevComposite;
-        ctx.globalAlpha = prevAlpha;
-      }
-      setGradientStart(null);
-      setCurrentDrag(null);
+            if (drawingState.tool === ToolType.LINE) {
+                ctx.moveTo(lastPoint.x, lastPoint.y);
+                ctx.lineTo(currentDrag.x, currentDrag.y);
+            } else if (drawingState.tool === ToolType.RECTANGLE) {
+                const w = currentDrag.x - lastPoint.x;
+                const h = currentDrag.y - lastPoint.y;
+                ctx.rect(lastPoint.x, lastPoint.y, w, h);
+            } else if (drawingState.tool === ToolType.ELLIPSE) {
+                const centerX = (lastPoint.x + currentDrag.x) / 2;
+                const centerY = (lastPoint.y + currentDrag.y) / 2;
+                const radiusX = Math.abs((currentDrag.x - lastPoint.x) / 2);
+                const radiusY = Math.abs((currentDrag.y - lastPoint.y) / 2);
+                ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, 2 * Math.PI);
+            }
+            ctx.stroke();
+            setLastPoint(null);
+            setCurrentDrag(null);
+        }
     }
     
     // Apply Transform Extraction (Cut pixel data)
     if (drawingState.tool === ToolType.TRANSFORM && selectionStart && selectionEnd) {
-      const canvas = layerCanvasRefs.current.get(activeLayerId);
-      const ctx = canvas?.getContext('2d');
-      
       if (canvas && ctx && containerRef.current) {
         // Normalize coordinates
         const x = Math.min(selectionStart.x, selectionEnd.x);
@@ -769,7 +804,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
                     width: layoutDims.width || '100%',
                     height: layoutDims.height || 'auto',
                     aspectRatio: `${canvasSize.width} / ${canvasSize.height}`,
-                    cursor: drawingState.tool === ToolType.GRADIENT || drawingState.tool === ToolType.TRANSFORM ? 'crosshair' : 'default'
+                    cursor: [ToolType.GRADIENT, ToolType.TRANSFORM, ToolType.RECTANGLE, ToolType.ELLIPSE, ToolType.LINE].includes(drawingState.tool) ? 'crosshair' : 'default'
                 }}
             >
                 {/* Background Fill */}
@@ -864,10 +899,10 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
                     {/* Gradient Line */}
                     {isDrawing && drawingState.tool === ToolType.GRADIENT && gradientStart && currentDrag && (
                         <line 
-                        x1={gradientStart.x / (containerRef.current?.getBoundingClientRect().width || 1) * 100 + '%'} 
-                        y1={gradientStart.y / (containerRef.current?.getBoundingClientRect().height || 1) * 100 + '%'} 
-                        x2={currentDrag.x / (containerRef.current?.getBoundingClientRect().width || 1) * 100 + '%'} 
-                        y2={currentDrag.y / (containerRef.current?.getBoundingClientRect().height || 1) * 100 + '%'} 
+                        x1={gradientStart.x / canvasSize.width * 100 + '%'} 
+                        y1={gradientStart.y / canvasSize.height * 100 + '%'} 
+                        x2={currentDrag.x / canvasSize.width * 100 + '%'} 
+                        y2={currentDrag.y / canvasSize.height * 100 + '%'} 
                         stroke="#3b82f6" 
                         strokeWidth="2"
                         strokeDasharray="5,5"
@@ -878,16 +913,62 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
                     {/* Selection Box */}
                     {isDrawing && drawingState.tool === ToolType.TRANSFORM && selectionStart && selectionEnd && (
                          <rect 
-                            x={Math.min(selectionStart.x, selectionEnd.x) / (layerCanvasRefs.current.get(activeLayerId)?.width || canvasSize.width) * 100 + '%'}
-                            y={Math.min(selectionStart.y, selectionEnd.y) / (layerCanvasRefs.current.get(activeLayerId)?.height || canvasSize.height) * 100 + '%'}
-                            width={Math.abs(selectionEnd.x - selectionStart.x) / (layerCanvasRefs.current.get(activeLayerId)?.width || canvasSize.width) * 100 + '%'}
-                            height={Math.abs(selectionEnd.y - selectionStart.y) / (layerCanvasRefs.current.get(activeLayerId)?.height || canvasSize.height) * 100 + '%'}
+                            x={Math.min(selectionStart.x, selectionEnd.x) / canvasSize.width * 100 + '%'}
+                            y={Math.min(selectionStart.y, selectionEnd.y) / canvasSize.height * 100 + '%'}
+                            width={Math.abs(selectionEnd.x - selectionStart.x) / canvasSize.width * 100 + '%'}
+                            height={Math.abs(selectionEnd.y - selectionStart.y) / canvasSize.height * 100 + '%'}
                             fill="rgba(59, 130, 246, 0.1)"
                             stroke="#3b82f6"
                             strokeWidth="1"
                             strokeDasharray="4,4"
                             vectorEffect="non-scaling-stroke"
                          />
+                    )}
+
+                    {/* Shape Previews */}
+                    {isDrawing && lastPoint && currentDrag && (
+                      <>
+                        {drawingState.tool === ToolType.LINE && (
+                          <line
+                            x1={lastPoint.x / canvasSize.width * 100 + '%'}
+                            y1={lastPoint.y / canvasSize.height * 100 + '%'}
+                            x2={currentDrag.x / canvasSize.width * 100 + '%'}
+                            y2={currentDrag.y / canvasSize.height * 100 + '%'}
+                            stroke={drawingState.color}
+                            strokeWidth={drawingState.brushSize}
+                            strokeLinecap="round"
+                            opacity={drawingState.opacity}
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        )}
+                        {drawingState.tool === ToolType.RECTANGLE && (
+                          <rect
+                            x={Math.min(lastPoint.x, currentDrag.x) / canvasSize.width * 100 + '%'}
+                            y={Math.min(lastPoint.y, currentDrag.y) / canvasSize.height * 100 + '%'}
+                            width={Math.abs(currentDrag.x - lastPoint.x) / canvasSize.width * 100 + '%'}
+                            height={Math.abs(currentDrag.y - lastPoint.y) / canvasSize.height * 100 + '%'}
+                            stroke={drawingState.color}
+                            strokeWidth={drawingState.brushSize}
+                            fill="none"
+                            strokeLinejoin="round"
+                            opacity={drawingState.opacity}
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        )}
+                        {drawingState.tool === ToolType.ELLIPSE && (
+                          <ellipse
+                            cx={(lastPoint.x + currentDrag.x) / 2 / canvasSize.width * 100 + '%'}
+                            cy={(lastPoint.y + currentDrag.y) / 2 / canvasSize.height * 100 + '%'}
+                            rx={Math.abs(currentDrag.x - lastPoint.x) / 2 / canvasSize.width * 100 + '%'}
+                            ry={Math.abs(currentDrag.y - lastPoint.y) / 2 / canvasSize.height * 100 + '%'}
+                            stroke={drawingState.color}
+                            strokeWidth={drawingState.brushSize}
+                            fill="none"
+                            opacity={drawingState.opacity}
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        )}
+                      </>
                     )}
                 </svg>
             </div>

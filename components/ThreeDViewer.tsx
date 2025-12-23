@@ -1,8 +1,7 @@
 import React, { Suspense, useMemo } from 'react';
-import { Canvas, useLoader } from '@react-three/fiber';
-import { OrbitControls, Stage, Html, useProgress } from '@react-three/drei';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls, Stage, Html, useProgress, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
-import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { CarModel } from '../types';
 import { X, Loader2, RotateCw } from 'lucide-react';
 
@@ -25,12 +24,30 @@ function Loader() {
 }
 
 const ModelRender = ({ url, textureMap }: { url: string, textureMap: THREE.Texture }) => {
-  const obj = useLoader(OBJLoader, url);
+  // Use GLTF loader which supports multiple UV sets (uv, uv2, etc.)
+  const { scene } = useGLTF(url);
 
-  const scene = useMemo(() => {
-    const clone = obj.clone();
+  const clonedScene = useMemo(() => {
+    // Deep clone the scene to allow independent material/geometry manipulation
+    const clone = scene.clone(true);
+    
     clone.traverse((child) => {
       if (child instanceof THREE.Mesh) {
+        // Clone geometry to safely modify attributes without affecting cache
+        child.geometry = child.geometry.clone();
+
+        // Check for secondary UV set (usually mapped from UVMap.001 in Blender to TEXCOORD_1 in GLTF)
+        // GLTFLoader names them 'uv' and 'uv2'.
+        if (child.geometry.attributes.uv2) {
+            // Swap: Use the second UV map for the main texture mapping
+            child.geometry.attributes.uv = child.geometry.attributes.uv2;
+        }
+
+        // Ensure geometry has valid normals to prevent shader division-by-zero errors
+        if (!child.geometry.attributes.normal) {
+            child.geometry.computeVertexNormals();
+        }
+
         // Create the wrap material
         const wrapMaterial = new THREE.MeshStandardMaterial({
           map: textureMap,
@@ -39,48 +56,38 @@ const ModelRender = ({ url, textureMap }: { url: string, textureMap: THREE.Textu
           metalness: 0.1,
           envMapIntensity: 1.0,
           transparent: true,
+          side: THREE.DoubleSide // Ensure visibility from all angles
         });
 
+        // Apply material logic
         if (Array.isArray(child.material)) {
           const materials = child.material as THREE.Material[];
           
-          // Logic: Find the material with the lowest number in its name (e.g. Material_140 vs Material_141)
-          // The user states "Material_NUMBER" is the naming convention and we want the first one (lowest).
-          // This ensures we target the main body material even if the array order varies.
-          
+          // Logic: Sort by string name (low to high) and pick the first one.
+          // This ensures consistent selection based on alphabetical order.
           let targetIndex = 0;
-          let lowestNum = Number.MAX_SAFE_INTEGER;
+          let lowestName = materials[0].name;
 
           materials.forEach((mat, index) => {
-            // Extract number from string like "Material_140"
-            const match = mat.name.match(/(\d+)/); 
-            if (match) {
-               const num = parseInt(match[1], 10);
-               if (num < lowestNum) {
-                 lowestNum = num;
-                 targetIndex = index;
-               }
+            if (mat.name < lowestName) {
+                lowestName = mat.name;
+                targetIndex = index;
             }
           });
 
-          // Apply to the best candidate found
           const newMaterials = [...materials];
           newMaterials[targetIndex] = wrapMaterial;
           child.material = newMaterials;
-          
         } else {
-          // Single material - apply directly
           child.material = wrapMaterial;
         }
-        
-        child.geometry.computeVertexNormals();
       }
     });
     return clone;
-  }, [obj, textureMap]);
+  }, [scene, textureMap]);
 
   // @ts-ignore
-  return <primitive object={scene} />;
+  return <primitive object={clonedScene} />;
 };
 
 const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ model, textureData, onClose }) => {
@@ -90,14 +97,17 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ model, textureData, onClose
     const loader = new THREE.TextureLoader();
     const tex = loader.load(textureData);
     tex.colorSpace = THREE.SRGBColorSpace;
-    // Note: We use the default flipY = true here.
-    // The canvas generates an image with (0,0) at top-left.
-    // Standard Blender UVs expect (0,0) at bottom-left.
-    // Therefore, flipping Y is required to align the texture correctly.
+    
+    // IMPORTANT: For GLTF models, textures are typically mapped with (0,0) at Top-Left
+    // matching the HTML Canvas coordinate system.
+    // Three.js defaults flipY=true (Bottom-Left origin), which we need to disable for GLTF compatibility.
+    tex.flipY = false; 
+    
     return tex;
   }, [textureData]);
 
-  const modelUrl = `https://raw.githubusercontent.com/GewoonJaap/custom-tesla-wraps/master/${model.folderName}/vehicle.obj`;
+  // Switch to .glb extension to ensure multiple UV maps are supported (GLTF format)
+  const modelUrl = `https://raw.githubusercontent.com/GewoonJaap/custom-tesla-wraps/master/${model.folderName}/vehicle.glb`;
 
   return (
     <div className="fixed inset-0 z-[200] bg-zinc-950 flex flex-col animate-in fade-in duration-300">
@@ -118,9 +128,9 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ model, textureData, onClose
 
       {textureMap ? (
         <div className="w-full h-full">
-            <Canvas shadows camera={{ position: [5, 2, 5], fov: 45 }}>
+            <Canvas shadows camera={{ position: [5, 2, 5], fov: 45 }} gl={{ preserveDrawingBuffer: true }}>
                 <Suspense fallback={<Loader />}>
-                    <Stage environment="city" intensity={0.5} shadows="contact">
+                    <Stage environment="city" intensity={0.5} shadows="contact" adjustCamera={1.2}>
                         <ModelRender url={modelUrl} textureMap={textureMap} />
                     </Stage>
                     <OrbitControls autoRotate autoRotateSpeed={0.5} makeDefault minPolarAngle={0} maxPolarAngle={Math.PI / 1.9} />

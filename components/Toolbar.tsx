@@ -27,7 +27,9 @@ import {
   Paperclip,
   Zap,
   Cpu,
-  Pipette
+  Pipette,
+  Square,
+  Minus
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -356,12 +358,16 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <div className="p-6 space-y-8 flex-1">
           <div>
             <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Tools</h3>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               <button onClick={() => onChange({ tool: ToolType.BRUSH })} className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${state.tool === ToolType.BRUSH ? 'bg-zinc-800 border-white text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}><Brush className="w-4 h-4" /><span className="text-[10px]">Brush</span></button>
               <button onClick={() => onChange({ tool: ToolType.ERASER })} className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${state.tool === ToolType.ERASER ? 'bg-zinc-800 border-white text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}><Eraser className="w-4 h-4" /><span className="text-[10px]">Eraser</span></button>
               <button onClick={() => onChange({ tool: ToolType.GRADIENT })} className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${state.tool === ToolType.GRADIENT ? 'bg-zinc-800 border-white text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}><MoveDiagonal className="w-4 h-4" /><span className="text-[10px]">Grad</span></button>
               <button onClick={() => onChange({ tool: ToolType.TEXT })} className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${state.tool === ToolType.TEXT ? 'bg-zinc-800 border-white text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}><Type className="w-4 h-4" /><span className="text-[10px]">Text</span></button>
               <button onClick={() => onChange({ tool: ToolType.TRANSFORM })} className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${state.tool === ToolType.TRANSFORM ? 'bg-zinc-800 border-white text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}><Scissors className="w-4 h-4" /><span className="text-[10px]">Select</span></button>
+              
+              <button onClick={() => onChange({ tool: ToolType.RECTANGLE })} className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${state.tool === ToolType.RECTANGLE ? 'bg-zinc-800 border-white text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}><Square className="w-4 h-4" /><span className="text-[10px]">Rect</span></button>
+              <button onClick={() => onChange({ tool: ToolType.ELLIPSE })} className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${state.tool === ToolType.ELLIPSE ? 'bg-zinc-800 border-white text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}><Circle className="w-4 h-4" /><span className="text-[10px]">Circle</span></button>
+              <button onClick={() => onChange({ tool: ToolType.LINE })} className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${state.tool === ToolType.LINE ? 'bg-zinc-800 border-white text-white' : 'bg-zinc-950 border-zinc-800 text-zinc-400'}`}><Minus className="w-4 h-4 -rotate-45" /><span className="text-[10px]">Line</span></button>
             </div>
           </div>
           {state.tool === ToolType.TEXT && (

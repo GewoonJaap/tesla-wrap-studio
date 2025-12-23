@@ -23,7 +23,10 @@ export enum ToolType {
   FILL = 'FILL',
   GRADIENT = 'GRADIENT',
   TRANSFORM = 'TRANSFORM',
-  TEXT = 'TEXT'
+  TEXT = 'TEXT',
+  RECTANGLE = 'RECTANGLE',
+  ELLIPSE = 'ELLIPSE',
+  LINE = 'LINE'
 }
 
 export interface DrawingState {
