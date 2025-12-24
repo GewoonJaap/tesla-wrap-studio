@@ -8,7 +8,20 @@ import { CAR_MODELS } from './constants';
 import { CarModel, DrawingState, ToolType, EditorHandle } from './types';
 
 const App: React.FC = () => {
-  const [selectedModel, setSelectedModel] = useState<CarModel>(CAR_MODELS[0]);
+  // Initialize from localStorage if available, otherwise default to first model
+  const [selectedModel, setSelectedModel] = useState<CarModel>(() => {
+    try {
+        const savedId = localStorage.getItem('tesla_wrap_last_model');
+        if (savedId) {
+            const found = CAR_MODELS.find(m => m.id === savedId);
+            if (found) return found;
+        }
+    } catch (e) {
+        console.warn("Failed to retrieve saved model preference", e);
+    }
+    return CAR_MODELS[0];
+  });
+
   const [drawingState, setDrawingState] = useState<DrawingState>({
     color: '#FF0000',
     secondaryColor: '#0000FF',
@@ -46,6 +59,11 @@ const App: React.FC = () => {
     const savedKey = localStorage.getItem('gemini_api_key');
     if (savedKey) setApiKey(savedKey);
   }, []);
+
+  // Persist Model Selection
+  useEffect(() => {
+    localStorage.setItem('tesla_wrap_last_model', selectedModel.id);
+  }, [selectedModel.id]);
 
   const handleSaveApiKey = (key: string) => {
     setApiKey(key);
