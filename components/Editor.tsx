@@ -1,7 +1,8 @@
+
 import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef } from 'react';
 import { CarModel, DrawingState, Point, ToolType, Layer, EditorHandle } from '../types';
 import { GITHUB_BASE_URL } from '../constants';
-import { Loader2, Eye, EyeOff, Move, Check, X as XIcon, RotateCw, GripHorizontal, FlipHorizontal, FlipVertical } from 'lucide-react';
+import { Loader2, Move, Check, X as XIcon, RotateCw, GripHorizontal, FlipHorizontal, FlipVertical, Box } from 'lucide-react';
 import LayerPanel from './LayerPanel';
 
 interface EditorProps {
@@ -11,6 +12,7 @@ interface EditorProps {
   onTextureApplied: () => void;
   isLayerPanelOpen?: boolean;
   onCloseLayerPanel?: () => void;
+  onOpen3D: () => void;
 }
 
 interface TransformState {
@@ -32,7 +34,8 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
   textureToApply,
   onTextureApplied,
   isLayerPanelOpen,
-  onCloseLayerPanel
+  onCloseLayerPanel,
+  onOpen3D
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -53,8 +56,6 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
   const templateImgRef = useRef<HTMLImageElement | null>(null);
   
   const [isTemplateLoaded, setIsTemplateLoaded] = useState(false);
-  const [showReference, setShowReference] = useState(false);
-  const [referenceError, setReferenceError] = useState(false);
   const [templateError, setTemplateError] = useState(false);
   
   const [isDrawing, setIsDrawing] = useState(false);
@@ -88,7 +89,6 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
 
   // Construct URLs
   const templateUrl = `${GITHUB_BASE_URL}/${model.folderName}/template.png`;
-  const referenceUrl = `${GITHUB_BASE_URL}/${model.folderName}/vehicle_image.png`;
 
   // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
@@ -235,7 +235,6 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
   useEffect(() => {
     setIsTemplateLoaded(false);
     setTemplateError(false);
-    setReferenceError(false);
     setPendingTexture(null);
     setActiveSelection(null); // Clear selection on model change
 
@@ -906,39 +905,18 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({
         {/* Workspace Center */}
         <div ref={wrapperRef} className="flex-1 bg-zinc-950/50 relative overflow-hidden flex items-center justify-center p-8 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-zinc-900 to-zinc-950 select-none">
         
-            {/* View Toggle */}
+            {/* 3D View Toggle */}
             {model.id !== 'license-plate' && (
               <div className="absolute top-4 right-4 z-10">
                   <button 
-                  onClick={() => setShowReference(!showReference)}
-                  className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 transition-all border shadow-lg ${
-                      showReference 
-                      ? 'bg-red-500/10 text-red-400 border-red-500/30' 
-                      : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:text-white hover:border-zinc-600'
-                  }`}
+                  onClick={onOpen3D}
+                  className="flex items-center gap-2 bg-zinc-800 text-white border border-zinc-600 px-4 py-2 rounded-full hover:bg-zinc-700 transition-all font-medium text-sm shadow-lg active:scale-95"
+                  title="3D Preview"
                   >
-                  {showReference ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}
-                  {showReference ? 'Hide Reference' : 'Show Reference'}
+                  <Box className="w-4 h-4" />
+                  <span className="hidden sm:inline">3D</span>
                   </button>
               </div>
-            )}
-
-            {/* Reference Window */}
-            {showReference && model.id !== 'license-plate' && (
-                <div className="absolute top-16 right-4 z-30 w-72 bg-zinc-900 rounded-xl border border-zinc-700 shadow-2xl overflow-hidden animate-in slide-in-from-right-4 fade-in duration-200">
-                <div className="bg-zinc-800/50 px-3 py-2 border-b border-zinc-700 flex justify-between items-center">
-                    <span className="text-xs font-medium text-zinc-300">Vehicle Reference</span>
-                    <button onClick={() => setShowReference(false)} className="text-zinc-500 hover:text-white"><EyeOff className="w-3 h-3"/></button>
-                </div>
-                <div className="p-2 bg-zinc-950">
-                    <img 
-                        src={referenceUrl} 
-                        alt="Reference" 
-                        className="w-full h-auto rounded border border-zinc-800"
-                        onError={() => setReferenceError(true)}
-                    />
-                </div>
-                </div>
             )}
 
             {/* Loading/Error States */}

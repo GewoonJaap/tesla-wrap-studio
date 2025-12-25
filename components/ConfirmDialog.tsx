@@ -10,6 +10,7 @@ interface ConfirmDialogProps {
   cancelLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
+  showCancel?: boolean;
   variant?: 'danger' | 'default' | 'success';
 }
 
@@ -21,6 +22,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   cancelLabel = 'Cancel',
   onConfirm,
   onCancel,
+  showCancel = true,
   variant = 'default'
 }) => {
   if (!isOpen) return null;
@@ -54,17 +56,21 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             </p>
 
             <div className="flex gap-3 justify-end">
-                <button 
-                    onClick={onCancel}
-                    className="px-4 py-2 rounded-lg text-sm font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
-                >
-                    {cancelLabel}
-                </button>
+                {showCancel && (
+                    <button 
+                        onClick={onCancel}
+                        className="px-4 py-2 rounded-lg text-sm font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                    >
+                        {cancelLabel}
+                    </button>
+                )}
                 <button 
                     onClick={onConfirm}
                     className={`px-4 py-2 rounded-lg text-sm font-medium text-white shadow-lg transition-all active:scale-95 ${
                         variant === 'danger' 
                         ? 'bg-red-600 hover:bg-red-500 shadow-red-900/20' 
+                        : variant === 'success'
+                        ? 'bg-green-600 hover:bg-green-500 shadow-green-900/20'
                         : 'bg-purple-600 hover:bg-purple-500 shadow-purple-900/20'
                     }`}
                 >

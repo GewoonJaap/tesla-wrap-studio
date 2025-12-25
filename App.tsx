@@ -10,12 +10,78 @@ import Gallery from './components/Gallery';
 import UploadModal from './components/UploadModal';
 import AuthModal from './components/AuthModal';
 import ConfirmDialog from './components/ConfirmDialog';
+import Footer from './components/Footer';
+import FaqPage from './components/FaqPage';
+import AboutPage from './components/AboutPage';
 import { CAR_MODELS } from './constants';
 import { CarModel, DrawingState, ToolType, EditorHandle, GalleryItem } from './types';
 import { supabase, fetchWraps, uploadWrapToSupabase, getUserFavorites, toggleFavoriteInDb, deleteWrap } from './services/supabase';
+import { processAndDownloadImage } from './services/imageUtils';
+
+type ViewState = 'editor' | 'gallery' | 'faq' | 'about';
 
 const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<'editor' | 'gallery'>('editor');
+  // --- Routing Logic ---
+  const [currentView, setCurrentView] = useState<ViewState>(() => {
+     if (typeof window !== 'undefined') {
+         const path = window.location.pathname;
+         if (path === '/gallery') return 'gallery';
+         if (path === '/faq') return 'faq';
+         if (path === '/about') return 'about';
+         return 'editor';
+     }
+     return 'editor';
+  });
+
+  // Handle URL updates and History
+  const navigate = useCallback((view: ViewState) => {
+      setCurrentView(view);
+      let path = '/';
+      if (view === 'gallery') path = '/gallery';
+      if (view === 'faq') path = '/faq';
+      if (view === 'about') path = '/about';
+      
+      if (window.location.pathname !== path) {
+          window.history.pushState(null, '', path);
+      }
+      window.scrollTo(0,0);
+  }, []);
+
+  // Listen for Back/Forward navigation
+  useEffect(() => {
+      const handlePopState = () => {
+          const path = window.location.pathname;
+          if (path === '/gallery') setCurrentView('gallery');
+          else if (path === '/faq') setCurrentView('faq');
+          else if (path === '/about') setCurrentView('about');
+          else setCurrentView('editor');
+      };
+
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Update SEO Meta
+  useEffect(() => {
+      let title = 'Tesla Wrap Studio | Free Wrap Maker & Designer';
+      let desc = 'The #1 Free Tesla Wrap Maker. Create, design, and download custom wraps for Cybertruck, Model 3, and Model Y. Compatible with the Tesla Holiday Update 2025.';
+
+      if (currentView === 'gallery') {
+          title = 'Tesla Wrap Gallery | Free Custom Wraps Download';
+          desc = 'Explore thousands of free custom Tesla wraps. Download unique designs for Cybertruck, Model 3, and Model Y created by the community.';
+      } else if (currentView === 'faq') {
+          title = 'Tesla Wrap Guide | How to Install Custom Wraps (2025 Update)';
+          desc = 'Learn how to create and install custom wraps on your Tesla using a USB drive. Updated for the December 2025 Paint Shop features.';
+      } else if (currentView === 'about') {
+          title = 'About Tesla Wrap Studio | The Best Free Wrap Creator';
+          desc = 'About Tesla Wrap Studio. We provide the best free tools for Tesla owners to design, visualize, and share custom vehicle wraps.';
+      }
+
+      document.title = title;
+      const metaDesc = document.querySelector('meta[name="description"]');
+      if (metaDesc) metaDesc.setAttribute('content', desc);
+  }, [currentView]);
+  // ---------------------
 
   // Initialize from localStorage if available
   const [selectedModel, setSelectedModel] = useState<CarModel>(() => {
@@ -64,13 +130,16 @@ const App: React.FC = () => {
   const [uploadImageBlob, setUploadImageBlob] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // Dialog State
   const [confirmDialog, setConfirmDialog] = useState<{
       isOpen: boolean;
       title: string;
       message: string;
-      variant: 'danger' | 'default';
+      variant: 'danger' | 'default' | 'success';
+      confirmLabel?: string;
+      showCancel?: boolean;
       onConfirm: () => void;
   }>({
       isOpen: false,
@@ -144,6 +213,8 @@ const App: React.FC = () => {
          title: 'Clear Active Layer',
          message: 'Are you sure you want to clear the active layer? This cannot be undone.',
          variant: 'danger',
+         showCancel: true,
+         confirmLabel: 'Clear',
          onConfirm: () => {
              editorRef.current?.clearLayer();
              setConfirmDialog(prev => ({ ...prev, isOpen: false }));
@@ -151,23 +222,61 @@ const App: React.FC = () => {
      });
   }, []);
 
-  const handleDownload = useCallback(() => {
+  const handleDownload = useCallback(async () => {
     const dataUrl = editorRef.current?.getCompositeData();
     if (!dataUrl) {
         alert("Canvas not ready");
         return;
     }
-    const link = document.createElement('a');
-    if (selectedModel.id === 'license-plate') {
-        const shortId = Date.now().toString().slice(-6);
-        link.download = `Plate_${shortId}.png`;
-    } else {
-        link.download = `tesla-wrap-${selectedModel.id}-${Date.now()}.png`;
+
+    setIsDownloading(true);
+    try {
+        let filename;
+        let limit = 1000 * 1024; // 1MB default
+        let maxDim = 1024; // 1024x1024 max for wraps
+
+        // Short ID to ensure filename length < 30 chars
+        const timestamp = Date.now().toString().slice(-6);
+        
+        if (selectedModel.id === 'license-plate') {
+            filename = `Plate_${timestamp}`;
+            limit = 500 * 1024; // 500KB for plates
+            maxDim = 420;
+        } else {
+            // Map long IDs to short codes
+            const modelMap: Record<string, string> = {
+                'cybertruck': 'CT',
+                'model3': 'M3',
+                'model3-2024-perf': 'M3P',
+                'model3-2024-base': 'M3',
+                'modely': 'MY',
+                'modely-2025-base': 'MY',
+                'modely-2025-perf': 'MYP',
+                'modely-2025-prem': 'MY',
+                'modely-l': 'MYLR'
+            };
+            const shortCode = modelMap[selectedModel.id] || 'Tesla';
+            filename = `Wrap_${shortCode}_${timestamp}`;
+        }
+        
+        filename += '.png';
+
+        await processAndDownloadImage(dataUrl, filename, limit, maxDim);
+
+    } catch (e: any) {
+        console.error("Download Error", e);
+        setConfirmDialog({
+            isOpen: true,
+            title: 'Export Failed',
+            message: "Failed to optimize image for export. Please try again.",
+            variant: 'danger',
+            showCancel: false,
+            confirmLabel: 'Close',
+            onConfirm: () => setConfirmDialog(prev => ({ ...prev, isOpen: false }))
+        });
+    } finally {
+        setIsDownloading(false);
     }
-    link.href = dataUrl;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   }, [selectedModel]);
 
   const handleOpen3D = useCallback(() => {
@@ -205,7 +314,7 @@ const App: React.FC = () => {
       if (model) {
           setSelectedModel(model);
           setTextureToApply(item.imageUrl);
-          setCurrentView('editor');
+          navigate('editor');
       } else {
           alert("Car model for this item not found.");
       }
@@ -255,11 +364,29 @@ const App: React.FC = () => {
 
         if (newItem) {
             setGalleryItems(prev => [newItem, ...prev]);
-            setCurrentView('gallery');
-            alert("Design published successfully!");
+            navigate('gallery');
+            
+            // Success Dialog
+            setConfirmDialog({
+                isOpen: true,
+                title: 'Design Published!',
+                message: 'Your custom wrap has been successfully published to the gallery.',
+                variant: 'success',
+                confirmLabel: 'Awesome',
+                showCancel: false,
+                onConfirm: () => setConfirmDialog(prev => ({ ...prev, isOpen: false }))
+            });
         }
     } catch (e: any) {
-        alert("Failed to upload: " + e.message);
+        setConfirmDialog({
+            isOpen: true,
+            title: 'Upload Failed',
+            message: "We couldn't upload your design. " + e.message,
+            variant: 'danger',
+            confirmLabel: 'Okay',
+            showCancel: false,
+            onConfirm: () => setConfirmDialog(prev => ({ ...prev, isOpen: false }))
+        });
     }
   };
 
@@ -271,14 +398,23 @@ const App: React.FC = () => {
           title: 'Delete Design',
           message: 'Are you sure you want to permanently delete this design? This action cannot be undone.',
           variant: 'danger',
+          showCancel: true,
+          confirmLabel: 'Delete',
           onConfirm: async () => {
               try {
                   await deleteWrap(item.id, item.imageUrl);
                   setGalleryItems(prev => prev.filter(i => i.id !== item.id));
                   setConfirmDialog(prev => ({ ...prev, isOpen: false }));
               } catch (e: any) {
-                  alert("Failed to delete wrap: " + e.message);
-                  setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                  setConfirmDialog({
+                      isOpen: true,
+                      title: 'Delete Failed',
+                      message: e.message,
+                      variant: 'danger',
+                      showCancel: false,
+                      confirmLabel: 'Close',
+                      onConfirm: () => setConfirmDialog(prev => ({ ...prev, isOpen: false }))
+                  });
               }
           }
       });
@@ -335,11 +471,79 @@ const App: React.FC = () => {
       setLikedWraps(new Set());
   };
 
+  const renderContent = () => {
+      switch (currentView) {
+          case 'editor':
+              return (
+                <div className="h-full flex flex-col relative overflow-hidden">
+                    <div className="flex-1 flex overflow-hidden relative">
+                        <Toolbar 
+                            state={drawingState} 
+                            selectedModel={selectedModel}
+                            onChange={handleStateChange}
+                            onClear={handleClearCanvas}
+                            onApplyTexture={handleApplyTexture}
+                            getCanvasData={getCanvasData}
+                            apiKey={apiKey}
+                            onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
+                            isOpen={isToolsOpen}
+                            onClose={() => setIsToolsOpen(false)}
+                        />
+                        <Editor 
+                            ref={editorRef}
+                            model={selectedModel}
+                            drawingState={drawingState}
+                            textureToApply={textureToApply}
+                            onTextureApplied={handleTextureApplied}
+                            isLayerPanelOpen={isLayersOpen}
+                            onCloseLayerPanel={() => setIsLayersOpen(false)}
+                            onOpen3D={handleOpen3D}
+                        />
+                    </div>
+                </div>
+              );
+          case 'gallery':
+              return (
+                  <div className="h-full overflow-y-auto">
+                    <Gallery 
+                        items={galleryItems}
+                        onRemix={handleRemix}
+                        onPreview3D={handleGalleryPreview3D}
+                        onUpload={handleOpenUploadModal}
+                        likedItemIds={likedWraps}
+                        onToggleLike={handleToggleLike}
+                        isLoggedIn={!!session}
+                        currentUserId={session?.user.id}
+                        onDelete={handleDeleteWrap}
+                        onAuth={() => setIsAuthModalOpen(true)}
+                    />
+                    <Footer onNavigate={navigate} />
+                  </div>
+              );
+          case 'faq':
+              return (
+                  <div className="h-full overflow-y-auto">
+                      <FaqPage />
+                      <Footer onNavigate={navigate} />
+                  </div>
+              );
+          case 'about':
+              return (
+                  <div className="h-full overflow-y-auto">
+                      <AboutPage />
+                      <Footer onNavigate={navigate} />
+                  </div>
+              );
+          default:
+              return null;
+      }
+  };
+
   return (
     <div className="h-full flex flex-col bg-zinc-950 text-white">
       <Header 
-        currentView={currentView}
-        onChangeView={setCurrentView}
+        currentView={currentView as any} // Cast for now, will fix header types next
+        onChangeView={(view) => navigate(view as any)}
         selectedModel={selectedModel} 
         onSelectModel={setSelectedModel}
         onDownload={handleDownload}
@@ -352,47 +556,11 @@ const App: React.FC = () => {
         session={session}
         onAuth={() => setIsAuthModalOpen(true)}
         onSignOut={handleSignOut}
+        isDownloading={isDownloading}
       />
       
-      <main className="flex-1 flex overflow-hidden relative">
-        {currentView === 'editor' ? (
-            <>
-                <Toolbar 
-                    state={drawingState} 
-                    selectedModel={selectedModel}
-                    onChange={handleStateChange}
-                    onClear={handleClearCanvas}
-                    onApplyTexture={handleApplyTexture}
-                    getCanvasData={getCanvasData}
-                    apiKey={apiKey}
-                    onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
-                    isOpen={isToolsOpen}
-                    onClose={() => setIsToolsOpen(false)}
-                />
-                
-                <Editor 
-                    ref={editorRef}
-                    model={selectedModel}
-                    drawingState={drawingState}
-                    textureToApply={textureToApply}
-                    onTextureApplied={handleTextureApplied}
-                    isLayerPanelOpen={isLayersOpen}
-                    onCloseLayerPanel={() => setIsLayersOpen(false)}
-                />
-            </>
-        ) : (
-            <Gallery 
-                items={galleryItems}
-                onRemix={handleRemix}
-                onPreview3D={handleGalleryPreview3D}
-                onUpload={handleOpenUploadModal}
-                likedItemIds={likedWraps}
-                onToggleLike={handleToggleLike}
-                isLoggedIn={!!session}
-                currentUserId={session?.user.id}
-                onDelete={handleDeleteWrap}
-            />
-        )}
+      <main className="flex-1 overflow-hidden relative">
+        {renderContent()}
       </main>
 
       {/* 3D Modal Overlay */}
@@ -425,10 +593,7 @@ const App: React.FC = () => {
       <AuthModal 
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
-        onSuccess={() => {
-            // If user logged in while upload modal was pending, we could reopen it, 
-            // but for simplicity we just let them click share again.
-        }}
+        onSuccess={() => {}}
       />
 
       {/* Confirmation Dialog */}
@@ -437,6 +602,8 @@ const App: React.FC = () => {
         title={confirmDialog.title}
         message={confirmDialog.message}
         variant={confirmDialog.variant}
+        showCancel={confirmDialog.showCancel}
+        confirmLabel={confirmDialog.confirmLabel}
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
       />

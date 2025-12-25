@@ -1,13 +1,17 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { CarModel } from '../types';
 import { CAR_MODELS } from '../constants';
-import { Car, ChevronDown, Download, HelpCircle, X, Coffee, Box, Palette, Layers, Upload, Grid, Share2, LogIn, User, HardDrive, FileImage, AlertTriangle, CheckCircle2, PlayCircle } from 'lucide-react';
+import { 
+  Car, ChevronDown, Download, HelpCircle, X, Box, Palette, Layers, 
+  Upload, Grid, Share2, LogIn, Menu, LogOut, FileImage, 
+  AlertTriangle, CheckCircle2, PlayCircle, Loader2, HardDrive, User, Info
+} from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 
 interface HeaderProps {
-  currentView: 'editor' | 'gallery';
-  onChangeView: (view: 'editor' | 'gallery') => void;
+  currentView: 'editor' | 'gallery' | 'faq' | 'about';
+  onChangeView: (view: 'editor' | 'gallery' | 'faq' | 'about') => void;
   selectedModel: CarModel;
   onSelectModel: (model: CarModel) => void;
   onDownload: () => void;
@@ -20,6 +24,7 @@ interface HeaderProps {
   session: Session | null;
   onAuth: () => void;
   onSignOut: () => void;
+  isDownloading?: boolean;
 }
 
 const Header: React.FC<HeaderProps> = ({ 
@@ -36,13 +41,20 @@ const Header: React.FC<HeaderProps> = ({
   onUpload,
   session,
   onAuth,
-  onSignOut
+  onSignOut,
+  isDownloading = false
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [helpTab, setHelpTab] = useState<'guide' | 'usb' | 'troubleshoot'>('guide');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Close mobile menu whenever view changes
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [currentView]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -51,79 +63,90 @@ const Header: React.FC<HeaderProps> = ({
       reader.onload = (event) => {
         if (typeof event.target?.result === 'string') {
           onImportWrap(event.target.result);
+          setIsMobileMenuOpen(false); // Close menu if open
         }
       };
       reader.readAsDataURL(file);
     }
-    // Reset value so same file can be selected again
     if (e.target) e.target.value = '';
+  };
+
+  // Helper to handle view change and close menu
+  const handleChangeView = (view: 'editor' | 'gallery' | 'faq' | 'about') => {
+      onChangeView(view);
+      setIsMobileMenuOpen(false);
   };
 
   return (
     <>
-      <header className="h-14 sm:h-16 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-3 sm:px-6 z-[100] shrink-0 shadow-md">
-        <div className="flex items-center gap-2 sm:gap-4">
-          
-          {currentView === 'editor' && (
-             <button 
-               onClick={onToggleTools}
-               className="md:hidden p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
-             >
-               <Palette className="w-5 h-5" />
-             </button>
-          )}
+      <header className="h-14 sm:h-16 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-3 sm:px-6 z-[100] shrink-0 shadow-md relative">
+        
+        {/* LEFT SECTION */}
+        <div className="flex items-center gap-3">
+            {/* Mobile Menu Button */}
+            <button 
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="lg:hidden p-2 -ml-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+            >
+                {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
 
-          <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-tr from-red-600 to-red-500 p-1.5 sm:p-2 rounded-lg shadow-lg shadow-red-900/20 hidden xs:block cursor-pointer" onClick={() => onChangeView('editor')}>
-              <Car className="text-white w-5 h-5 sm:w-6 sm:h-6" />
+            {/* Logo (Hidden on small mobile if in Editor to save space for dropdown) */}
+            <div className={`items-center gap-3 ${currentView === 'editor' ? 'hidden sm:flex' : 'flex'}`}>
+                <div 
+                    className="bg-gradient-to-tr from-red-600 to-red-500 p-1.5 sm:p-2 rounded-lg shadow-lg shadow-red-900/20 cursor-pointer" 
+                    onClick={() => handleChangeView('editor')}
+                >
+                    <Car className="text-white w-5 h-5 sm:w-6 sm:h-6" />
+                </div>
+                <h1 
+                    className="text-lg sm:text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400 hidden xl:block tracking-tight cursor-pointer" 
+                    onClick={() => handleChangeView('editor')}
+                >
+                    Tesla Wrap Studio
+                </h1>
             </div>
-            <h1 className="text-lg sm:text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400 hidden lg:block tracking-tight cursor-pointer" onClick={() => onChangeView('editor')}>
-              Tesla Wrap Studio
-            </h1>
-          </div>
-          
-          {/* Navigation Tabs */}
-          <div className="hidden sm:flex bg-zinc-950 p-1 rounded-lg border border-zinc-800 ml-4">
+
+            {/* Desktop Nav Tabs */}
+            <div className="hidden lg:flex bg-zinc-950 p-1 rounded-lg border border-zinc-800 ml-4">
               <button 
-                onClick={() => onChangeView('editor')}
+                onClick={() => handleChangeView('editor')}
                 className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${currentView === 'editor' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
               >
                  <Palette className="w-4 h-4" /> Studio
               </button>
               <button 
-                onClick={() => onChangeView('gallery')}
+                onClick={() => handleChangeView('gallery')}
                 className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${currentView === 'gallery' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
               >
                  <Grid className="w-4 h-4" /> Gallery
               </button>
-          </div>
-          
-          {currentView === 'editor' && (
-              <>
-                <div className="h-6 w-px bg-zinc-800 hidden lg:block mx-2"></div>
+            </div>
+            
+            {/* Divider */}
+            {currentView === 'editor' && <div className="h-6 w-px bg-zinc-800 hidden lg:block mx-2"></div>}
 
+            {/* Model Selector (Visible on Mobile in Editor) */}
+            {currentView === 'editor' && (
                 <div className="relative">
                     <button
-                    onClick={() => setIsOpen(!isOpen)}
-                    className="flex items-center gap-2 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-200 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg transition-all border border-zinc-700 hover:border-zinc-600 outline-none focus:ring-2 focus:ring-red-500/20 max-w-[160px] sm:max-w-none"
+                        onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+                        className="flex items-center gap-2 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-200 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg transition-all border border-zinc-700 hover:border-zinc-600 outline-none focus:ring-2 focus:ring-red-500/20 max-w-[140px] xs:max-w-[180px] sm:max-w-[240px]"
                     >
-                    <span className="text-xs sm:text-sm font-medium truncate">{selectedModel.name}</span>
-                    <ChevronDown className={`w-3 h-3 sm:w-4 sm:h-4 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
+                        <span className="text-xs sm:text-sm font-medium truncate">{selectedModel.name}</span>
+                        <ChevronDown className={`w-3 h-3 sm:w-4 sm:h-4 transition-transform shrink-0 ${isModelDropdownOpen ? 'rotate-180' : ''}`} />
                     </button>
 
-                    {isOpen && (
+                    {isModelDropdownOpen && (
                     <>
-                        <div 
-                        className="fixed inset-0 z-40"
-                        onClick={() => setIsOpen(false)}
-                        />
+                        <div className="fixed inset-0 z-40" onClick={() => setIsModelDropdownOpen(false)} />
                         <div className="absolute top-full mt-2 left-0 w-72 bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl overflow-hidden py-1 z-50 max-h-[80vh] overflow-y-auto ring-1 ring-black/50">
                         {CAR_MODELS.map((model) => (
                             <button
                             key={model.id}
                             onClick={() => {
                                 onSelectModel(model);
-                                setIsOpen(false);
+                                setIsModelDropdownOpen(false);
                             }}
                             className={`w-full text-left px-4 py-3 text-sm hover:bg-zinc-800 transition-colors flex items-center justify-between group ${
                                 selectedModel.id === model.id ? 'bg-zinc-800/80 text-white' : 'text-zinc-400 hover:text-white'
@@ -137,82 +160,14 @@ const Header: React.FC<HeaderProps> = ({
                     </>
                     )}
                 </div>
-              </>
-          )}
+            )}
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-3">
-           {/* Mobile View Toggle */}
-           <button 
-                onClick={() => onChangeView(currentView === 'editor' ? 'gallery' : 'editor')}
-                className="sm:hidden p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
-                title={currentView === 'editor' ? 'Go to Gallery' : 'Go to Studio'}
-            >
-                {currentView === 'editor' ? <Grid className="w-5 h-5" /> : <Palette className="w-5 h-5" />}
-            </button>
-
-            {/* Auth Button */}
-            {session ? (
-                 <div className="relative">
-                    <button 
-                        onClick={() => setIsProfileOpen(!isProfileOpen)}
-                        className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 sm:px-3 sm:py-1.5 rounded-full transition-all border border-zinc-700"
-                    >
-                        <div className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold">
-                             {session.user.email?.charAt(0).toUpperCase()}
-                        </div>
-                    </button>
-                    {isProfileOpen && (
-                         <>
-                             <div className="fixed inset-0 z-40" onClick={() => setIsProfileOpen(false)} />
-                             <div className="absolute top-full right-0 mt-2 w-48 bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl py-1 z-50">
-                                 <div className="px-4 py-2 border-b border-zinc-800">
-                                     <p className="text-xs text-zinc-500">Signed in as</p>
-                                     <p className="text-sm text-white truncate">{session.user.email}</p>
-                                 </div>
-                                 <button 
-                                     onClick={() => { onSignOut(); setIsProfileOpen(false); }}
-                                     className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-zinc-800 hover:text-red-300 transition-colors"
-                                 >
-                                     Sign Out
-                                 </button>
-                             </div>
-                         </>
-                    )}
-                 </div>
-            ) : (
-                <button
-                    onClick={onAuth}
-                    className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors px-2 py-1.5 rounded-lg hover:bg-zinc-800"
-                >
-                    <LogIn className="w-5 h-5" />
-                    <span className="hidden sm:inline text-sm font-medium">Sign In</span>
-                </button>
-            )}
-
-          <div className="h-6 w-px bg-zinc-800 hidden sm:block"></div>
-
-          <button
-            onClick={() => setShowHelp(true)}
-            className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition-colors hidden sm:block"
-            title="Help & Instructions"
-          >
-            <HelpCircle className="w-5 h-5" />
-          </button>
-
-          {currentView === 'editor' && (
-              <>
-                {selectedModel.id !== 'license-plate' && (
-                    <button
-                        onClick={onOpen3D}
-                        className="flex items-center gap-2 bg-zinc-800 text-white border border-zinc-600 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full hover:bg-zinc-700 transition-all font-medium text-xs sm:text-sm shadow-lg active:scale-95"
-                        title="3D Preview"
-                    >
-                        <Box className="w-4 h-4" />
-                        <span className="hidden sm:inline">3D</span>
-                    </button>
-                )}
-
+        {/* RIGHT SECTION */}
+        <div className="flex items-center gap-2">
+            
+            {/* Desktop Actions */}
+            <div className="hidden lg:flex items-center gap-3">
                 <input 
                     type="file" 
                     ref={fileInputRef}
@@ -221,58 +176,219 @@ const Header: React.FC<HeaderProps> = ({
                     className="hidden"
                 />
 
+                {session ? (
+                    <div className="relative">
+                        <button 
+                            onClick={() => setIsProfileOpen(!isProfileOpen)}
+                            className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded-full transition-all border border-zinc-700"
+                        >
+                            <div className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold">
+                                {session.user.email?.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-xs font-medium max-w-[100px] truncate">{session.user.email}</span>
+                        </button>
+                        {isProfileOpen && (
+                            <>
+                                <div className="fixed inset-0 z-40" onClick={() => setIsProfileOpen(false)} />
+                                <div className="absolute top-full right-0 mt-2 w-48 bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl py-1 z-50">
+                                    <button 
+                                        onClick={() => { onSignOut(); setIsProfileOpen(false); }}
+                                        className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-zinc-800 hover:text-red-300 transition-colors flex items-center gap-2"
+                                    >
+                                        <LogOut className="w-4 h-4"/> Sign Out
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                ) : (
+                    <button
+                        onClick={onAuth}
+                        className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-zinc-800 text-sm font-medium"
+                    >
+                        <LogIn className="w-4 h-4" /> Sign In
+                    </button>
+                )}
+                
+                <div className="h-6 w-px bg-zinc-800"></div>
+                
                 <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-2 bg-zinc-800 text-white border border-zinc-600 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full hover:bg-zinc-700 transition-all font-medium text-xs sm:text-sm shadow-lg active:scale-95 hidden lg:flex"
-                    title="Import Design"
+                    onClick={() => setShowHelp(true)}
+                    className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition-colors"
+                    title="Help"
                 >
-                    <Upload className="w-4 h-4" />
-                    <span className="hidden sm:inline">Import</span>
+                    <HelpCircle className="w-5 h-5" />
                 </button>
 
-                <button
-                    onClick={onShare}
-                    className="flex items-center gap-2 bg-purple-600 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full hover:bg-purple-500 transition-all font-medium text-xs sm:text-sm shadow-lg shadow-purple-500/20 active:scale-95"
-                    title="Share to Gallery"
-                >
-                    <Share2 className="w-4 h-4" />
-                    <span className="hidden sm:inline">Share</span>
-                </button>
+                {currentView === 'editor' && (
+                    <>
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="flex items-center gap-2 bg-zinc-800 text-white border border-zinc-600 px-4 py-2 rounded-full hover:bg-zinc-700 transition-all font-medium text-sm shadow-lg active:scale-95"
+                        >
+                            <Upload className="w-4 h-4" /> Import
+                        </button>
+                        <button
+                            onClick={onShare}
+                            className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-full hover:bg-purple-500 transition-all font-medium text-sm shadow-lg shadow-purple-500/20 active:scale-95"
+                        >
+                            <Share2 className="w-4 h-4" /> Share
+                        </button>
+                    </>
+                )}
+            </div>
 
+            {/* Primary Action Button (Always Visible) */}
+            {currentView === 'editor' ? (
                 <button
                     onClick={onDownload}
-                    className="flex items-center gap-2 bg-white text-black px-3 py-1.5 sm:px-4 sm:py-2 rounded-full hover:bg-zinc-200 transition-all font-medium text-xs sm:text-sm shadow-lg shadow-white/5 active:scale-95"
-                    title="Export Texture"
+                    disabled={isDownloading}
+                    className="flex items-center gap-2 bg-white text-black px-3 py-1.5 sm:px-4 sm:py-2 rounded-full hover:bg-zinc-200 transition-all font-medium text-xs sm:text-sm shadow-lg shadow-white/5 active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed shrink-0"
                 >
-                    <Download className="w-4 h-4" />
-                    <span className="hidden sm:inline">Export</span>
+                    {isDownloading ? <Loader2 className="w-4 h-4 animate-spin"/> : <Download className="w-4 h-4" />}
+                    <span>{isDownloading ? 'Processing' : 'Export'}</span>
                 </button>
-
-                <button 
-                    onClick={onToggleLayers}
-                    className="md:hidden p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors ml-1"
+            ) : (
+                <button
+                    onClick={onUpload}
+                    className="flex items-center gap-2 bg-white text-black px-3 py-1.5 sm:px-4 sm:py-2 rounded-full hover:bg-zinc-200 transition-all font-medium text-xs sm:text-sm shadow-lg shadow-white/5 active:scale-95 shrink-0"
                 >
-                    <Layers className="w-5 h-5" />
+                    <Upload className="w-4 h-4" />
+                    <span>Upload</span>
                 </button>
-              </>
-          )}
+            )}
 
-          {currentView === 'gallery' && (
-              <button
-                  onClick={onUpload}
-                  className="flex items-center gap-2 bg-white text-black px-3 py-1.5 sm:px-4 sm:py-2 rounded-full hover:bg-zinc-200 transition-all font-medium text-xs sm:text-sm shadow-lg shadow-white/5 active:scale-95"
-                  title="Upload Design"
-              >
-                  <Upload className="w-4 h-4" />
-                  <span className="hidden sm:inline">Upload</span>
-              </button>
-          )}
+            {/* Mobile Tools & Layers Toggles (Visible on Editor) */}
+            {currentView === 'editor' && (
+                 <div className="flex lg:hidden items-center gap-1 ml-1">
+                    <button 
+                        onClick={onToggleTools}
+                        className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+                    >
+                        <Palette className="w-6 h-6" />
+                    </button>
+                    <button 
+                        onClick={onToggleLayers}
+                        className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+                    >
+                        <Layers className="w-6 h-6" />
+                    </button>
+                 </div>
+            )}
         </div>
       </header>
       
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-[90] lg:hidden">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)} />
+            <div className="absolute top-14 left-0 right-0 bg-zinc-900 border-b border-zinc-800 shadow-2xl animate-in slide-in-from-top-5 duration-200 flex flex-col max-h-[80vh] overflow-y-auto">
+                
+                {/* 1. Auth Section */}
+                <div className="p-4 border-b border-zinc-800 bg-zinc-950/50">
+                    {session ? (
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-sm font-bold text-white shadow-lg">
+                                    {session.user.email?.charAt(0).toUpperCase()}
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-bold text-white">Signed In</span>
+                                    <span className="text-xs text-zinc-400 truncate max-w-[150px]">{session.user.email}</span>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => { onSignOut(); setIsMobileMenuOpen(false); }}
+                                className="p-2 bg-zinc-800 hover:bg-red-500/10 hover:text-red-400 rounded-lg transition-colors"
+                            >
+                                <LogOut className="w-5 h-5" />
+                            </button>
+                        </div>
+                    ) : (
+                         <button
+                            onClick={() => { onAuth(); setIsMobileMenuOpen(false); }}
+                            className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
+                        >
+                            <LogIn className="w-5 h-5" /> Sign In to Save Designs
+                        </button>
+                    )}
+                </div>
+
+                {/* 2. Navigation */}
+                <div className="p-2 grid grid-cols-2 gap-2 border-b border-zinc-800">
+                     <button 
+                        onClick={() => handleChangeView('editor')}
+                        className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-all ${currentView === 'editor' ? 'bg-zinc-800 text-white ring-1 ring-zinc-700' : 'text-zinc-500 hover:bg-zinc-800/50'}`}
+                     >
+                        <Palette className="w-6 h-6" />
+                        <span className="text-xs font-medium">Studio</span>
+                     </button>
+                     <button 
+                        onClick={() => handleChangeView('gallery')}
+                        className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-all ${currentView === 'gallery' ? 'bg-zinc-800 text-white ring-1 ring-zinc-700' : 'text-zinc-500 hover:bg-zinc-800/50'}`}
+                     >
+                        <Grid className="w-6 h-6" />
+                        <span className="text-xs font-medium">Gallery</span>
+                     </button>
+                     <button 
+                        onClick={() => handleChangeView('faq')}
+                        className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-all ${currentView === 'faq' ? 'bg-zinc-800 text-white ring-1 ring-zinc-700' : 'text-zinc-500 hover:bg-zinc-800/50'}`}
+                     >
+                        <HelpCircle className="w-6 h-6" />
+                        <span className="text-xs font-medium">FAQ & Guide</span>
+                     </button>
+                     <button 
+                        onClick={() => handleChangeView('about')}
+                        className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-all ${currentView === 'about' ? 'bg-zinc-800 text-white ring-1 ring-zinc-700' : 'text-zinc-500 hover:bg-zinc-800/50'}`}
+                     >
+                        <Info className="w-6 h-6" />
+                        <span className="text-xs font-medium">About</span>
+                     </button>
+                </div>
+
+                {/* 3. Editor Actions (Only if in Editor) */}
+                {currentView === 'editor' && (
+                    <div className="p-4 border-b border-zinc-800">
+                        <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3">Editor Actions</h3>
+                        <div className="grid grid-cols-2 gap-3">
+                             <button 
+                                onClick={() => fileInputRef.current?.click()}
+                                className="flex items-center gap-3 p-3 bg-zinc-800/50 rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors"
+                             >
+                                <div className="p-2 bg-zinc-900 rounded-md"><Upload className="w-4 h-4 text-orange-400"/></div>
+                                <span className="text-sm font-medium">Import Image</span>
+                             </button>
+                             <button 
+                                onClick={() => { onShare(); setIsMobileMenuOpen(false); }}
+                                className="flex items-center gap-3 p-3 bg-zinc-800/50 rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors"
+                             >
+                                <div className="p-2 bg-zinc-900 rounded-md"><Share2 className="w-4 h-4 text-purple-400"/></div>
+                                <span className="text-sm font-medium">Share Design</span>
+                             </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* 4. General Links */}
+                <div className="p-4">
+                     <button 
+                        onClick={() => { setShowHelp(true); setIsMobileMenuOpen(false); }}
+                        className="w-full flex items-center justify-between p-3 bg-zinc-900 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                     >
+                        <span className="flex items-center gap-3">
+                            <HelpCircle className="w-5 h-5" /> Installation Guide
+                        </span>
+                        <ChevronDown className="w-4 h-4 -rotate-90" />
+                     </button>
+                </div>
+
+            </div>
+        </div>
+      )}
+      
       {/* Help Modal */}
       {showHelp && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
             
             {/* Header */}
@@ -298,13 +414,13 @@ const Header: React.FC<HeaderProps> = ({
                     onClick={() => setHelpTab('usb')}
                     className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${helpTab === 'usb' ? 'border-red-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
                 >
-                    USB Setup & Specs
+                    USB & Specs
                 </button>
                 <button 
                     onClick={() => setHelpTab('troubleshoot')}
                     className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${helpTab === 'troubleshoot' ? 'border-red-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
                 >
-                    Installation & Help
+                    Help
                 </button>
             </div>
             

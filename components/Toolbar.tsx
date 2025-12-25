@@ -1,7 +1,9 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { CarModel, DrawingState, ToolType } from '../types';
 import { PRESET_COLORS, GITHUB_BASE_URL, GOOGLE_FONTS } from '../constants';
 import { generateTexture } from '../services/geminiService';
+import ColorPicker from './ColorPicker';
 import { 
   Brush, 
   Eraser, 
@@ -93,10 +95,11 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const [savedColors, setSavedColors] = useState<string[]>([]);
   const historyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
+  // Custom Color Picker State
+  const [activePicker, setActivePicker] = useState<'primary' | 'secondary' | null>(null);
+
   const [textContent, setTextContent] = useState('Tesla');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const colorInputRef = useRef<HTMLInputElement>(null);
-  const secondaryColorInputRef = useRef<HTMLInputElement>(null);
 
   const isAiStudioKey = apiKey === 'AI_STUDIO_KEY';
 
@@ -674,7 +677,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
              {/* Current Color Active Display */}
              <div className="bg-zinc-950/50 p-2 rounded-xl border border-zinc-800 flex items-center gap-3">
                  <div 
-                    onClick={() => colorInputRef.current?.click()}
+                    onClick={() => setActivePicker('primary')}
                     className="w-10 h-10 rounded-lg border-2 border-white shadow-lg cursor-pointer hover:scale-105 transition-transform relative overflow-hidden group" 
                     style={{ backgroundColor: state.color }}
                  >
@@ -686,13 +689,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
                     <div className="text-[10px] text-zinc-500 font-medium uppercase mb-0.5">Active</div>
                     <div className="flex items-center gap-2">
                         <code className="text-xs font-mono text-zinc-300">{state.color}</code>
-                        <input 
-                            ref={colorInputRef}
-                            type="color"
-                            value={state.color}
-                            onChange={(e) => onChange({ color: e.target.value })}
-                            className="w-0 h-0 opacity-0 absolute"
-                        />
                     </div>
                  </div>
                  <button 
@@ -762,7 +758,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                         />
                     ))}
                     <button 
-                        onClick={() => colorInputRef.current?.click()}
+                        onClick={() => setActivePicker('primary')}
                         className="aspect-square rounded-full border border-zinc-700 bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors"
                     >
                         <Plus className="w-3 h-3" />
@@ -777,19 +773,12 @@ const Toolbar: React.FC<ToolbarProps> = ({
                      <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Gradient End</h3>
                      <span className="text-[10px] text-zinc-600 font-mono uppercase">{state.secondaryColor}</span>
                   </div>
-                  <div className="flex items-center gap-3 bg-zinc-950/50 p-2 rounded-lg border border-zinc-800 cursor-pointer hover:border-zinc-700 transition-colors" onClick={() => secondaryColorInputRef.current?.click()}>
+                  <div className="flex items-center gap-3 bg-zinc-950/50 p-2 rounded-lg border border-zinc-800 cursor-pointer hover:border-zinc-700 transition-colors" onClick={() => setActivePicker('secondary')}>
                       <div 
                          className="w-8 h-8 rounded border border-zinc-700 shadow-sm"
                          style={{ backgroundColor: state.secondaryColor }}
                       />
                       <span className="text-xs text-zinc-300">Choose End Color</span>
-                      <input 
-                        ref={secondaryColorInputRef}
-                        type="color" 
-                        value={state.secondaryColor}
-                        onChange={(e) => onChange({ secondaryColor: e.target.value })}
-                        className="hidden"
-                      />
                   </div>
                </div>
             )}
@@ -845,6 +834,15 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 </div>
             </div>
         </div>
+      )}
+
+      {/* Custom Color Picker Modal */}
+      {activePicker && (
+          <ColorPicker 
+              color={activePicker === 'primary' ? state.color : state.secondaryColor} 
+              onChange={(c) => onChange(activePicker === 'primary' ? { color: c } : { secondaryColor: c })}
+              onClose={() => setActivePicker(null)}
+          />
       )}
     </>
   );
