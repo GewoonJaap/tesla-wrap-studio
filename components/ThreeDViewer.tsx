@@ -1,11 +1,14 @@
+
 import React, { Suspense, useMemo } from 'react';
 import { Canvas, useLoader } from '@react-three/fiber';
 import { OrbitControls, Stage, Html, useProgress } from '@react-three/drei';
 import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
-import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { CarModel } from '../types';
 import { X, Loader2, RotateCw } from 'lucide-react';
+
+// Toggle this to enable/disable Material loading
+const ENABLE_MTL_LOADING = false;
 
 interface ThreeDViewerProps {
   model: CarModel;
@@ -26,12 +29,10 @@ function Loader() {
 }
 
 const ModelRender = ({ modelUrl, mtlUrl, textureMap }: { modelUrl: string, mtlUrl: string, textureMap: THREE.Texture }) => {
-  const materials = useLoader(MTLLoader, mtlUrl);
+  // NOTE: MTLLoader hook removed to respect ENABLE_MTL_LOADING = false. 
+  // Hooks cannot be conditional. To re-enable, you must uncomment MTLLoader import and usage.
   
-  const obj = useLoader(OBJLoader, modelUrl, (loader) => {
-    materials.preload();
-    loader.setMaterials(materials);
-  });
+  const obj = useLoader(OBJLoader, modelUrl);
 
   const scene = useMemo(() => {
     const clone = obj.clone();
@@ -52,30 +53,14 @@ const ModelRender = ({ modelUrl, mtlUrl, textureMap }: { modelUrl: string, mtlUr
         });
 
         if (Array.isArray(child.material)) {
-          const materialsList = child.material as THREE.Material[];
-          
-          // Logic: Sort by string name (low to high) and pick the first one to apply the wrap.
-          // This allows us to target the main body if it is named alphabetically first (e.g. 'Body' vs 'Glass')
-          let targetIndex = 0;
-          let lowestName = materialsList[0].name;
-
-          materialsList.forEach((mat, index) => {
-            if (mat.name < lowestName) {
-                lowestName = mat.name;
-                targetIndex = index;
-            }
-          });
-
-          // Create a new array to avoid mutating the original
-          const newMaterials = [...materialsList];
-          newMaterials[targetIndex] = wrapMaterial;
-          child.material = newMaterials;
-          
+            // If the mesh originally had multiple materials (from MTL), we override them.
+            // Since MTL loading is disabled, this path is less likely to be complex, 
+            // but OBJLoader might still assign default materials.
+            const newMaterials = child.material.map(() => wrapMaterial);
+            child.material = newMaterials;
         } else {
-          // If it's a single material, we assume it's the body part being rendered as a separate mesh.
-          // In some cases this might overwrite windows if they are separate meshes but have a generic name.
-          // Ideally, we would check the material name here too, but for now we apply the wrap to ensure visibility.
-          child.material = wrapMaterial;
+            // Apply wrap to the whole mesh
+            child.material = wrapMaterial;
         }
       }
     });

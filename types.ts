@@ -53,3 +53,15 @@ export interface EditorHandle {
   clearLayer: () => void;
   getCompositeData: () => string | undefined;
 }
+
+export interface GalleryItem {
+  id: string;
+  title: string;
+  author: string;
+  likes: number;
+  downloads: number;
+  imageUrl: string;
+  carModelId: string;
+  createdAt: string;
+  tags: string[];
+}

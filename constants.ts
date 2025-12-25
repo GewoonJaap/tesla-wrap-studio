@@ -1,4 +1,9 @@
+
 import { CarModel } from './types';
+
+// Supabase Configuration
+export const SUPABASE_URL = 'https://gwhjdgbjcqbhhdwzrijk.supabase.co';
+export const SUPABASE_ANON_KEY = 'sb_publishable_VIeBGELa247GRxB7IVJOxw_Quqw_lbY';
 
 export const GITHUB_BASE_URL = 'https://raw.githubusercontent.com/GewoonJaap/custom-tesla-wraps/master';
 
