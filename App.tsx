@@ -11,7 +11,7 @@ import UploadModal from './components/UploadModal';
 import AuthModal from './components/AuthModal';
 import { CAR_MODELS } from './constants';
 import { CarModel, DrawingState, ToolType, EditorHandle, GalleryItem } from './types';
-import { supabase, fetchWraps, uploadWrapToSupabase, getUserFavorites, toggleFavoriteInDb } from './services/supabase';
+import { supabase, fetchWraps, uploadWrapToSupabase, getUserFavorites, toggleFavoriteInDb, deleteWrap } from './services/supabase';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<'editor' | 'gallery'>('editor');
@@ -240,6 +240,21 @@ const App: React.FC = () => {
     }
   };
 
+  const handleDeleteWrap = async (item: GalleryItem) => {
+      if (!session || session.user.id !== item.userId) return;
+
+      if (!window.confirm("Are you sure you want to delete this design? This action cannot be undone.")) {
+          return;
+      }
+
+      try {
+          await deleteWrap(item.id, item.imageUrl);
+          setGalleryItems(prev => prev.filter(i => i.id !== item.id));
+      } catch (e: any) {
+          alert("Failed to delete wrap: " + e.message);
+      }
+  };
+
   const handleToggleLike = async (item: GalleryItem) => {
     if (!session) {
         setIsAuthModalOpen(true);
@@ -345,6 +360,8 @@ const App: React.FC = () => {
                 likedItemIds={likedWraps}
                 onToggleLike={handleToggleLike}
                 isLoggedIn={!!session}
+                currentUserId={session?.user.id}
+                onDelete={handleDeleteWrap}
             />
         )}
       </main>

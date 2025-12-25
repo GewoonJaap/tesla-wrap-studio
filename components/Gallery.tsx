@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { GalleryItem } from '../types';
 import { CAR_MODELS } from '../constants';
-import { Heart, Download, Edit3, Box, Search, TrendingUp, Clock, Star, Upload, User, LogIn } from 'lucide-react';
+import { Heart, Download, Edit3, Box, Search, TrendingUp, Clock, Star, Upload, User, LogIn, Trash2, FolderOpen } from 'lucide-react';
 
 interface GalleryProps {
   items: GalleryItem[];
@@ -12,9 +12,21 @@ interface GalleryProps {
   likedItemIds: Set<string>;
   onToggleLike: (item: GalleryItem) => void;
   isLoggedIn: boolean;
+  currentUserId?: string;
+  onDelete?: (item: GalleryItem) => void;
 }
 
-const Gallery: React.FC<GalleryProps> = ({ items, onRemix, onPreview3D, onUpload, likedItemIds, onToggleLike, isLoggedIn }) => {
+const Gallery: React.FC<GalleryProps> = ({ 
+  items, 
+  onRemix, 
+  onPreview3D, 
+  onUpload, 
+  likedItemIds, 
+  onToggleLike, 
+  isLoggedIn,
+  currentUserId,
+  onDelete 
+}) => {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -26,12 +38,15 @@ const Gallery: React.FC<GalleryProps> = ({ items, onRemix, onPreview3D, onUpload
     if (activeCategory === 'favorites') {
         return items.filter(item => likedItemIds.has(item.id));
     }
+    if (activeCategory === 'my_wraps') {
+        return items.filter(item => item.userId === currentUserId);
+    }
     if (activeCategory === 'all') return items;
     return items.filter(item => item.carModelId === activeCategory);
-  }, [items, activeCategory, likedItemIds]);
+  }, [items, activeCategory, likedItemIds, currentUserId]);
 
   // Search Results logic
-  // If we are in 'favorites' mode, search WITHIN favorites
+  // If we are in 'favorites' or 'my_wraps' mode, search WITHIN that subset
   const displayItems = useMemo(() => {
     if (!searchQuery) return categoryItems;
     const q = searchQuery.toLowerCase();
@@ -42,19 +57,19 @@ const Gallery: React.FC<GalleryProps> = ({ items, onRemix, onPreview3D, onUpload
     );
   }, [categoryItems, searchQuery]);
 
-  // Grouped Collections for the main browse view (only used when not searching and not in favorites view)
+  // Grouped Collections for the main browse view (only used when not searching and viewing 'all')
   const collections = useMemo(() => {
       // 1. Featured: Mix of likes and simple weighted randomness (simulated by downloads count for demo)
-      const featured = [...categoryItems].sort((a, b) => (b.likes + b.downloads * 2) - (a.likes + a.downloads * 2)).slice(0, 10);
+      const featured = [...items].sort((a, b) => (b.likes + b.downloads * 2) - (a.likes + a.downloads * 2)).slice(0, 10);
       
       // 2. Popular: Sorted by likes
-      const popular = [...categoryItems].sort((a, b) => b.likes - a.likes).slice(0, 10);
+      const popular = [...items].sort((a, b) => b.likes - a.likes).slice(0, 10);
 
       // 3. Newest: Sorted by Date
-      const newest = [...categoryItems].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 10);
+      const newest = [...items].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 10);
 
       return { featured, popular, newest };
-  }, [categoryItems]);
+  }, [items]);
 
   const handleDownload = (e: React.MouseEvent, item: GalleryItem) => {
       e.stopPropagation();
@@ -67,84 +82,103 @@ const Gallery: React.FC<GalleryProps> = ({ items, onRemix, onPreview3D, onUpload
   };
 
   // Reusable Card Component
-  const GalleryCard: React.FC<{ item: GalleryItem, className?: string }> = ({ item, className = "" }) => (
-    <div 
-        className={`group bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden hover:border-zinc-600 transition-all hover:shadow-2xl hover:shadow-purple-900/10 flex flex-col h-full ${className}`}
-    >
-        {/* Image Area */}
-        <div className="relative aspect-square bg-zinc-950 overflow-hidden">
-            <img 
-                src={item.imageUrl} 
-                alt={item.title} 
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                loading="lazy"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent opacity-60" />
-            
-            {/* Overlay Actions */}
-            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/40 backdrop-blur-[2px] gap-2">
-                <button 
-                    onClick={() => onPreview3D(item)}
-                    className="bg-white text-black px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300 hover:scale-105"
-                >
-                    <Box className="w-4 h-4" /> 3D
-                </button>
-                <button 
-                    onClick={() => onRemix(item)}
-                    className="bg-purple-600 text-white px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300 delay-75 hover:scale-105 shadow-lg shadow-purple-600/20"
-                >
-                    <Edit3 className="w-4 h-4" /> Remix
-                </button>
-            </div>
+  const GalleryCard: React.FC<{ item: GalleryItem, className?: string }> = ({ item, className = "" }) => {
+    const isOwner = currentUserId === item.userId;
 
-            {/* Top Stats */}
-            <div className="absolute top-3 right-3 flex gap-2">
+    return (
+        <div 
+            className={`group bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden hover:border-zinc-600 transition-all hover:shadow-2xl hover:shadow-purple-900/10 flex flex-col h-full ${className}`}
+        >
+            {/* Image Area */}
+            <div className="relative aspect-square bg-zinc-950 overflow-hidden">
+                <img 
+                    src={item.imageUrl} 
+                    alt={item.title} 
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    loading="lazy"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent opacity-60" />
+                
+                {/* Overlay Actions */}
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/40 backdrop-blur-[2px] gap-2">
+                    <button 
+                        onClick={() => onPreview3D(item)}
+                        className="bg-white text-black px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300 hover:scale-105"
+                    >
+                        <Box className="w-4 h-4" /> 3D
+                    </button>
+                    <button 
+                        onClick={() => onRemix(item)}
+                        className="bg-purple-600 text-white px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300 delay-75 hover:scale-105 shadow-lg shadow-purple-600/20"
+                    >
+                        <Edit3 className="w-4 h-4" /> Remix
+                    </button>
+                </div>
+
+                {/* Top Overlay Stats/Actions */}
+                <div className="absolute top-3 right-3 flex gap-2">
                     <div className="bg-black/50 backdrop-blur-md px-2 py-1 rounded-md text-[10px] text-white font-medium border border-white/10 uppercase">
-                    {item.carModelId.replace('model', 'M-').substring(0, 10)}
+                        {item.carModelId.replace('model', 'M-').substring(0, 10)}
                     </div>
+                </div>
+
+                {/* Delete Button (Owner Only) */}
+                {isOwner && onDelete && (
+                    <div className="absolute top-3 left-3">
+                         <button 
+                             onClick={(e) => { e.stopPropagation(); onDelete(item); }}
+                             className="bg-red-500/80 hover:bg-red-500 text-white p-2 rounded-full backdrop-blur-md transition-colors shadow-lg hover:scale-110"
+                             title="Delete your design"
+                         >
+                             <Trash2 className="w-4 h-4" />
+                         </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Content Area */}
+            <div className="p-4 flex flex-col gap-3 flex-1">
+                <div className="flex justify-between items-start">
+                    <div className="min-w-0">
+                        <h3 className="font-bold text-white text-base sm:text-lg leading-tight truncate pr-2" title={item.title}>{item.title}</h3>
+                        <p className="text-sm text-zinc-500 truncate">by <span className="text-zinc-400 hover:text-purple-400 cursor-pointer transition-colors">@{item.author}</span></p>
+                    </div>
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onToggleLike(item); }}
+                        className={`p-2 rounded-full transition-colors shrink-0 ${likedItemIds.has(item.id) ? 'bg-pink-500/10 text-pink-500' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'}`}
+                    >
+                        <Heart className={`w-4 h-4 ${likedItemIds.has(item.id) ? 'fill-current' : ''}`} />
+                    </button>
+                </div>
+
+                {/* Tags */}
+                <div className="flex flex-wrap gap-1.5 mt-auto">
+                    {item.tags.slice(0, 2).map(tag => (
+                        <span key={tag} className="text-[10px] px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700 truncate max-w-[80px]">
+                            #{tag}
+                        </span>
+                    ))}
+                </div>
+
+                {/* Footer Stats */}
+                <div className="pt-3 mt-1 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-500 font-medium">
+                    <div className="flex gap-3">
+                        <span className="flex items-center gap-1"><Heart className="w-3 h-3" /> {item.likes}</span>
+                        <span className="flex items-center gap-1"><Download className="w-3 h-3" /> {item.downloads}</span>
+                    </div>
+                    <button 
+                        onClick={(e) => handleDownload(e, item)}
+                        className="text-zinc-400 hover:text-white flex items-center gap-1 transition-colors"
+                    >
+                        <Download className="w-3.5 h-3.5" /> Save
+                    </button>
+                </div>
             </div>
         </div>
+    );
+  };
 
-        {/* Content Area */}
-        <div className="p-4 flex flex-col gap-3 flex-1">
-            <div className="flex justify-between items-start">
-                <div className="min-w-0">
-                    <h3 className="font-bold text-white text-base sm:text-lg leading-tight truncate pr-2" title={item.title}>{item.title}</h3>
-                    <p className="text-sm text-zinc-500 truncate">by <span className="text-zinc-400 hover:text-purple-400 cursor-pointer transition-colors">@{item.author}</span></p>
-                </div>
-                <button 
-                    onClick={(e) => { e.stopPropagation(); onToggleLike(item); }}
-                    className={`p-2 rounded-full transition-colors shrink-0 ${likedItemIds.has(item.id) ? 'bg-pink-500/10 text-pink-500' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'}`}
-                >
-                    <Heart className={`w-4 h-4 ${likedItemIds.has(item.id) ? 'fill-current' : ''}`} />
-                </button>
-            </div>
-
-            {/* Tags */}
-            <div className="flex flex-wrap gap-1.5 mt-auto">
-                {item.tags.slice(0, 2).map(tag => (
-                    <span key={tag} className="text-[10px] px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700 truncate max-w-[80px]">
-                        #{tag}
-                    </span>
-                ))}
-            </div>
-
-            {/* Footer Stats */}
-            <div className="pt-3 mt-1 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-500 font-medium">
-                <div className="flex gap-3">
-                    <span className="flex items-center gap-1"><Heart className="w-3 h-3" /> {item.likes}</span>
-                    <span className="flex items-center gap-1"><Download className="w-3 h-3" /> {item.downloads}</span>
-                </div>
-                <button 
-                    onClick={(e) => handleDownload(e, item)}
-                    className="text-zinc-400 hover:text-white flex items-center gap-1 transition-colors"
-                >
-                    <Download className="w-3.5 h-3.5" /> Save
-                </button>
-            </div>
-        </div>
-    </div>
-  );
+  const isBrowsingAll = activeCategory === 'all' && !searchQuery;
 
   return (
     <div className="flex-1 overflow-y-auto bg-zinc-950 scrollbar-thin">
@@ -179,6 +213,13 @@ const Gallery: React.FC<GalleryProps> = ({ items, onRemix, onPreview3D, onUpload
           
           {/* Tabs */}
           <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 scrollbar-hide">
+             <button 
+                onClick={() => setActiveCategory('my_wraps')}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap flex items-center gap-2 ${activeCategory === 'my_wraps' ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
+             >
+                <FolderOpen className={`w-4 h-4 ${activeCategory === 'my_wraps' ? 'fill-white/20' : ''}`} /> My Wraps
+             </button>
+
              <button 
                 onClick={() => setActiveCategory('favorites')}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap flex items-center gap-2 ${activeCategory === 'favorites' ? 'bg-pink-600 text-white shadow-lg shadow-pink-600/20' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
@@ -222,14 +263,18 @@ const Gallery: React.FC<GalleryProps> = ({ items, onRemix, onPreview3D, onUpload
       </div>
 
       {/* Main Content Area */}
-      {searchQuery || activeCategory === 'favorites' ? (
-          // Grid View for Search Results OR Favorites
+      {!isBrowsingAll || activeCategory !== 'all' ? (
+          // Grid View for Search Results OR Specific Categories (Favorites, My Wraps, Specific Models)
           <div className="container mx-auto px-4 sm:px-6 py-8">
               <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
                   {searchQuery ? (
                      <><Search className="w-5 h-5 text-purple-500" /> Search Results ({displayItems.length})</>
-                  ) : (
+                  ) : activeCategory === 'favorites' ? (
                      <><Heart className="w-5 h-5 text-pink-500 fill-pink-500" /> Your Favorites ({displayItems.length})</>
+                  ) : activeCategory === 'my_wraps' ? (
+                     <><FolderOpen className="w-5 h-5 text-purple-500" /> My Designs ({displayItems.length})</>
+                  ) : (
+                     <>{CAR_MODELS.find(c => c.id === activeCategory)?.name || 'Wraps'} ({displayItems.length})</>
                   )}
               </h2>
               
@@ -261,12 +306,31 @@ const Gallery: React.FC<GalleryProps> = ({ items, onRemix, onPreview3D, onUpload
                                     </div>
                                 )}
                             </>
+                        ) : activeCategory === 'my_wraps' ? (
+                            <>
+                                <FolderOpen className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
+                                <h3 className="text-xl font-bold text-white mb-2">No designs yet</h3>
+                                <p className="text-zinc-500 mb-6">
+                                    {isLoggedIn 
+                                        ? "You haven't uploaded any designs yet. Get creative in the Studio!" 
+                                        : "Sign in to manage your uploaded designs."}
+                                </p>
+                                {isLoggedIn ? (
+                                    <button onClick={onUpload} className="px-6 py-2 bg-white text-black rounded-full font-medium hover:bg-zinc-200">
+                                        Upload Design
+                                    </button>
+                                ) : (
+                                    <div className="flex justify-center text-sm text-zinc-400">
+                                        <LogIn className="w-4 h-4 mr-2" /> Log in via the header
+                                    </div>
+                                )}
+                            </>
                         ) : (
                             <>
                                 <Search className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
                                 <h3 className="text-xl font-bold text-white mb-2">No wraps found</h3>
-                                <p className="text-zinc-500 mb-6">We couldn't find any designs matching your search.</p>
-                                <button onClick={() => {setSearchQuery('');}} className="px-6 py-2 bg-white text-black rounded-full font-medium hover:bg-zinc-200">
+                                <p className="text-zinc-500 mb-6">We couldn't find any designs matching your criteria.</p>
+                                <button onClick={() => {setSearchQuery(''); setActiveCategory('all');}} className="px-6 py-2 bg-white text-black rounded-full font-medium hover:bg-zinc-200">
                                     Clear Search
                                 </button>
                             </>
@@ -276,7 +340,7 @@ const Gallery: React.FC<GalleryProps> = ({ items, onRemix, onPreview3D, onUpload
               )}
           </div>
       ) : (
-          // Swipable Sections for Browse Mode
+          // Swipable Sections for Browse Mode (Only when viewing 'All' and no search)
           <div className="py-8 space-y-12 pb-20">
               
               {/* Featured Section */}

@@ -58,6 +58,7 @@ export interface GalleryItem {
   id: string;
   title: string;
   author: string;
+  userId: string; // Added to track ownership
   likes: number;
   downloads: number;
   imageUrl: string;

@@ -61,6 +61,7 @@ export const uploadWrapToSupabase = async (
         id: insertData.id,
         title: insertData.title,
         author: insertData.author,
+        userId: insertData.user_id,
         likes: insertData.likes,
         downloads: insertData.downloads,
         imageUrl: insertData.image_url,
@@ -90,6 +91,7 @@ export const fetchWraps = async (): Promise<GalleryItem[]> => {
     id: item.id,
     title: item.title,
     author: item.author,
+    userId: item.user_id,
     likes: item.likes,
     downloads: item.downloads,
     imageUrl: item.image_url,
@@ -97,6 +99,35 @@ export const fetchWraps = async (): Promise<GalleryItem[]> => {
     createdAt: item.created_at,
     tags: item.tags || []
   }));
+};
+
+export const deleteWrap = async (wrapId: string, imageUrl: string): Promise<void> => {
+    // 1. Delete from Database
+    const { error: dbError } = await supabase
+        .from('wraps')
+        .delete()
+        .eq('id', wrapId);
+
+    if (dbError) throw dbError;
+
+    // 2. Delete from Storage
+    // We need to extract the path relative to the bucket.
+    // URL format: .../storage/v1/object/public/wrap-images/USER_ID/FILENAME.png
+    try {
+        const urlObj = new URL(imageUrl);
+        // Split by the bucket name to get the path
+        const pathParts = urlObj.pathname.split('/wrap-images/');
+        if (pathParts.length > 1) {
+            const relativePath = decodeURIComponent(pathParts[1]);
+            const { error: storageError } = await supabase.storage
+                .from('wrap-images')
+                .remove([relativePath]);
+            
+            if (storageError) console.warn("Storage deletion warning:", storageError);
+        }
+    } catch (e) {
+        console.warn("Could not parse image URL for storage deletion", e);
+    }
 };
 
 // --- Favorites Logic ---
