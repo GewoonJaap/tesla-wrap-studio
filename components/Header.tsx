@@ -205,7 +205,7 @@ const Header: React.FC<HeaderProps> = ({
                 {selectedModel.id !== 'license-plate' && (
                     <button
                         onClick={onOpen3D}
-                        className="flex items-center gap-2 bg-zinc-800 text-white border border-zinc-600 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full hover:bg-zinc-700 transition-all font-medium text-xs sm:text-sm shadow-lg active:scale-95 hidden xs:flex"
+                        className="flex items-center gap-2 bg-zinc-800 text-white border border-zinc-600 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full hover:bg-zinc-700 transition-all font-medium text-xs sm:text-sm shadow-lg active:scale-95"
                         title="3D Preview"
                     >
                         <Box className="w-4 h-4" />

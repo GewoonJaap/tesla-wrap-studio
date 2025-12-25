@@ -9,6 +9,7 @@ import ApiKeyModal from './components/ApiKeyModal';
 import Gallery from './components/Gallery';
 import UploadModal from './components/UploadModal';
 import AuthModal from './components/AuthModal';
+import ConfirmDialog from './components/ConfirmDialog';
 import { CAR_MODELS } from './constants';
 import { CarModel, DrawingState, ToolType, EditorHandle, GalleryItem } from './types';
 import { supabase, fetchWraps, uploadWrapToSupabase, getUserFavorites, toggleFavoriteInDb, deleteWrap } from './services/supabase';
@@ -63,6 +64,21 @@ const App: React.FC = () => {
   const [uploadImageBlob, setUploadImageBlob] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
+
+  // Dialog State
+  const [confirmDialog, setConfirmDialog] = useState<{
+      isOpen: boolean;
+      title: string;
+      message: string;
+      variant: 'danger' | 'default';
+      onConfirm: () => void;
+  }>({
+      isOpen: false,
+      title: '',
+      message: '',
+      variant: 'default',
+      onConfirm: () => {},
+  });
 
   // Mobile Menu States
   const [isToolsOpen, setIsToolsOpen] = useState(false);
@@ -123,9 +139,16 @@ const App: React.FC = () => {
   };
 
   const handleClearCanvas = useCallback(() => {
-     if (window.confirm("Are you sure you want to clear the active layer?")) {
-         editorRef.current?.clearLayer();
-     }
+     setConfirmDialog({
+         isOpen: true,
+         title: 'Clear Active Layer',
+         message: 'Are you sure you want to clear the active layer? This cannot be undone.',
+         variant: 'danger',
+         onConfirm: () => {
+             editorRef.current?.clearLayer();
+             setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+         }
+     });
   }, []);
 
   const handleDownload = useCallback(() => {
@@ -240,19 +263,25 @@ const App: React.FC = () => {
     }
   };
 
-  const handleDeleteWrap = async (item: GalleryItem) => {
+  const handleDeleteWrap = (item: GalleryItem) => {
       if (!session || session.user.id !== item.userId) return;
 
-      if (!window.confirm("Are you sure you want to delete this design? This action cannot be undone.")) {
-          return;
-      }
-
-      try {
-          await deleteWrap(item.id, item.imageUrl);
-          setGalleryItems(prev => prev.filter(i => i.id !== item.id));
-      } catch (e: any) {
-          alert("Failed to delete wrap: " + e.message);
-      }
+      setConfirmDialog({
+          isOpen: true,
+          title: 'Delete Design',
+          message: 'Are you sure you want to permanently delete this design? This action cannot be undone.',
+          variant: 'danger',
+          onConfirm: async () => {
+              try {
+                  await deleteWrap(item.id, item.imageUrl);
+                  setGalleryItems(prev => prev.filter(i => i.id !== item.id));
+                  setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+              } catch (e: any) {
+                  alert("Failed to delete wrap: " + e.message);
+                  setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+              }
+          }
+      });
   };
 
   const handleToggleLike = async (item: GalleryItem) => {
@@ -400,6 +429,16 @@ const App: React.FC = () => {
             // If user logged in while upload modal was pending, we could reopen it, 
             // but for simplicity we just let them click share again.
         }}
+      />
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog 
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        variant={confirmDialog.variant}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
       />
     </div>
   );
