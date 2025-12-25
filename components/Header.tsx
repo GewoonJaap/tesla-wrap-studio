@@ -2,7 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { CarModel } from '../types';
 import { CAR_MODELS } from '../constants';
-import { Car, ChevronDown, Download, HelpCircle, X, Coffee, Box, Palette, Layers, Upload, Grid, Share2, LogIn, User } from 'lucide-react';
+import { Car, ChevronDown, Download, HelpCircle, X, Coffee, Box, Palette, Layers, Upload, Grid, Share2, LogIn, User, HardDrive, FileImage, AlertTriangle, CheckCircle2, PlayCircle } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 
 interface HeaderProps {
@@ -41,6 +41,7 @@ const Header: React.FC<HeaderProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [helpTab, setHelpTab] = useState<'guide' | 'usb' | 'troubleshoot'>('guide');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -269,38 +270,178 @@ const Header: React.FC<HeaderProps> = ({
         </div>
       </header>
       
-      {/* Help Modal code... (same as before) */}
+      {/* Help Modal */}
       {showHelp && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-zinc-800 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
+            
+            {/* Header */}
+            <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <HelpCircle className="w-5 h-5 text-red-500" />
-                Instructions
+                Custom Wraps Guide
               </h2>
               <button onClick={() => setShowHelp(false)} className="p-2 hover:bg-zinc-800 rounded-full transition-colors text-zinc-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Tabs */}
+            <div className="flex border-b border-zinc-800 bg-zinc-900">
+                <button 
+                    onClick={() => setHelpTab('guide')}
+                    className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${helpTab === 'guide' ? 'border-red-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+                >
+                    Quick Guide
+                </button>
+                <button 
+                    onClick={() => setHelpTab('usb')}
+                    className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${helpTab === 'usb' ? 'border-red-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+                >
+                    USB Setup & Specs
+                </button>
+                <button 
+                    onClick={() => setHelpTab('troubleshoot')}
+                    className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${helpTab === 'troubleshoot' ? 'border-red-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+                >
+                    Installation & Help
+                </button>
+            </div>
             
-            <div className="p-6 overflow-y-auto space-y-6 text-zinc-300 text-sm leading-relaxed scrollbar-thin">
-              <section className="space-y-3">
-                <h3 className="text-white font-semibold text-base">License Plates</h3>
-                <p>Tesla supports custom license plate background images (PNG, max 0.5 MB, 420x100px recommended). Create a folder named <strong>LicensePlate</strong> on your USB drive.</p>
-              </section>
+            {/* Content */}
+            <div className="p-6 overflow-y-auto space-y-6 text-zinc-300 text-sm leading-relaxed scrollbar-thin bg-zinc-900/50">
+              
+              {helpTab === 'guide' && (
+                  <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                      <div className="bg-zinc-800/50 p-4 rounded-xl border border-zinc-700/50">
+                          <h3 className="text-white font-bold mb-3 flex items-center gap-2">
+                              <PlayCircle className="w-4 h-4 text-purple-400" /> How to Use Custom Wraps
+                          </h3>
+                          <ol className="space-y-3 list-decimal list-inside text-zinc-400">
+                              <li><strong className="text-zinc-200">Select Model:</strong> Choose your vehicle from the top menu to load the correct template.</li>
+                              <li><strong className="text-zinc-200">Design:</strong> Use the drawing tools or AI Texture Gen to create your wrap. Fill all areas.</li>
+                              <li><strong className="text-zinc-200">Export:</strong> Click the "Export" button to save your design as a PNG.</li>
+                              <li><strong className="text-zinc-200">Prepare USB:</strong> Create a folder named <code>Wraps</code> on your USB drive.</li>
+                              <li><strong className="text-zinc-200">Apply:</strong> Plug the USB into your Tesla. Go to <strong>Toybox &rarr; Paint Shop &rarr; Wraps</strong>.</li>
+                          </ol>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                          <div className="p-3 bg-zinc-950 rounded-lg border border-zinc-800">
+                             <h4 className="font-medium text-white mb-1">Wraps</h4>
+                             <p className="text-xs text-zinc-500">For changing the entire vehicle body color/texture.</p>
+                          </div>
+                          <div className="p-3 bg-zinc-950 rounded-lg border border-zinc-800">
+                             <h4 className="font-medium text-white mb-1">License Plates</h4>
+                             <p className="text-xs text-zinc-500">Custom background for your license plate (Select "License Plate" in model menu).</p>
+                          </div>
+                      </div>
+                  </div>
+              )}
 
-              <section className="space-y-3">
-                <h3 className="text-white font-semibold text-base">Vehicle Wraps</h3>
-                <p>For custom wraps, create a folder named <strong>Wraps</strong> on your USB drive. Exported PNGs should be under 1 MB.</p>
-              </section>
+              {helpTab === 'usb' && (
+                  <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                      {/* Vehicle Wraps Specs */}
+                      <div>
+                          <h3 className="text-white font-bold mb-3 flex items-center gap-2">
+                              <Car className="w-4 h-4 text-blue-400" /> Vehicle Wraps Specs
+                          </h3>
+                          <ul className="space-y-2 text-xs sm:text-sm">
+                              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0"/> Folder: <code className="bg-zinc-800 px-1 rounded">Wraps</code> (Case-sensitive)</li>
+                              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0"/> Resolution: <strong>512x512</strong> to <strong>1024x1024</strong></li>
+                              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0"/> File Size: Max <strong>1 MB</strong></li>
+                              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0"/> Format: .png (Max 10 images)</li>
+                          </ul>
+                      </div>
 
-              <section className="space-y-3 text-zinc-400 text-xs bg-zinc-950 p-4 rounded-lg border border-zinc-800">
-                <p>Note: Orientation for wraps is TOP = FRONT of car, BOTTOM = REAR of car.</p>
-              </section>
+                      {/* License Plate Specs */}
+                      <div className="pt-4 border-t border-zinc-800">
+                          <h3 className="text-white font-bold mb-3 flex items-center gap-2">
+                              <FileImage className="w-4 h-4 text-purple-400" /> License Plate Specs
+                          </h3>
+                          <ul className="space-y-2 text-xs sm:text-sm">
+                              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0"/> Folder: <code className="bg-zinc-800 px-1 rounded">LicensePlate</code> (Case-sensitive)</li>
+                              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0"/> Resolution: <strong>420x100</strong> (Rec) to <strong>420x200</strong> (Max)</li>
+                              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0"/> File Size: Max <strong>0.5 MB</strong></li>
+                              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0"/> Filename: Max 32 chars (Letters & Numbers only)</li>
+                              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0"/> Limit: Max 10 images</li>
+                          </ul>
+                      </div>
+
+                      <div className="pt-4 border-t border-zinc-800">
+                          <h3 className="text-white font-bold mb-3 flex items-center gap-2">
+                              <HardDrive className="w-4 h-4 text-orange-400" /> USB Drive Setup
+                          </h3>
+                          <div className="bg-zinc-950 p-4 rounded-lg border border-zinc-800 space-y-3 font-mono text-xs">
+                              <p>1. Format Drive: exFAT, FAT32, MS-DOS FAT, ext3, or ext4.</p>
+                              <p>2. Create Folder Structure:</p>
+                              <div className="pl-4 border-l-2 border-zinc-700">
+                                  <p>USB_ROOT/</p>
+                                  <p className="pl-4">├── Wraps/</p>
+                                  <p className="pl-4">└── LicensePlate/</p>
+                              </div>
+                              <p className="text-red-400 flex items-center gap-2 mt-2"><AlertTriangle className="w-3 h-3"/> Ensure no map/firmware updates are on the drive.</p>
+                          </div>
+                      </div>
+                  </div>
+              )}
+
+              {helpTab === 'troubleshoot' && (
+                  <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                       <div className="bg-zinc-800/30 p-4 rounded-lg">
+                          <h3 className="text-white font-bold mb-2">Applying in Vehicle</h3>
+                          <div className="space-y-4">
+                              <div>
+                                  <strong className="text-xs text-blue-400 uppercase tracking-wider block mb-1">For Wraps</strong>
+                                  <div className="flex gap-2 items-center text-sm font-medium text-white flex-wrap">
+                                      <span className="bg-zinc-700 px-2 py-1 rounded">Toybox</span>
+                                      <span>&rarr;</span>
+                                      <span className="bg-zinc-700 px-2 py-1 rounded">Paint Shop</span>
+                                      <span>&rarr;</span>
+                                      <span className="bg-zinc-700 px-2 py-1 rounded">Wraps</span>
+                                  </div>
+                              </div>
+                              <div>
+                                  <strong className="text-xs text-purple-400 uppercase tracking-wider block mb-1">For License Plates</strong>
+                                  <div className="flex gap-2 items-center text-sm font-medium text-white flex-wrap">
+                                      <span className="bg-zinc-700 px-2 py-1 rounded">Settings</span>
+                                      <span>&rarr;</span>
+                                      <span className="bg-zinc-700 px-2 py-1 rounded">Background</span>
+                                      <span>&rarr;</span>
+                                      <span className="bg-zinc-700 px-2 py-1 rounded">Image</span>
+                                  </div>
+                              </div>
+                          </div>
+                       </div>
+
+                       <div>
+                          <h3 className="text-white font-bold mb-3 flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4 text-yellow-500" /> Troubleshooting
+                          </h3>
+                          <ul className="space-y-3 text-zinc-400">
+                              <li className="border-l-2 border-zinc-700 pl-3">
+                                  <strong className="text-white block">Image not showing?</strong>
+                                  Check that your file is a <strong>.png</strong>.
+                                  <br/>Wraps must be &lt; 1MB. Plates must be &lt; 0.5MB.
+                                  <br/>Ensure filenames have no special characters.
+                              </li>
+                              <li className="border-l-2 border-zinc-700 pl-3">
+                                  <strong className="text-white block">Folder name correct?</strong>
+                                  It must be exactly <code>Wraps</code> or <code>LicensePlate</code> (case-sensitive).
+                              </li>
+                              <li className="border-l-2 border-zinc-700 pl-3">
+                                  <strong className="text-white block">NTFS Format?</strong>
+                                  Tesla does not currently support NTFS formatted drives for this feature. Please reformat to exFAT or FAT32.
+                              </li>
+                          </ul>
+                       </div>
+                  </div>
+              )}
+
             </div>
 
-            <div className="p-4 border-t border-zinc-800 flex justify-end">
-              <button onClick={() => setShowHelp(false)} className="bg-zinc-100 hover:bg-white text-black px-6 py-2 rounded-lg font-medium transition-colors">
+            {/* Footer */}
+            <div className="p-4 border-t border-zinc-800 flex justify-end bg-zinc-950">
+              <button onClick={() => setShowHelp(false)} className="bg-white hover:bg-zinc-200 text-black px-6 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-white/10">
                 Got it
               </button>
             </div>
