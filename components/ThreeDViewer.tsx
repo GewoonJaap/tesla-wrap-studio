@@ -4,11 +4,9 @@ import { Canvas, useLoader } from '@react-three/fiber';
 import { OrbitControls, Stage, Html, useProgress } from '@react-three/drei';
 import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { CarModel } from '../types';
 import { X, Loader2, RotateCw } from 'lucide-react';
-
-// Toggle this to enable/disable Material loading
-const ENABLE_MTL_LOADING = false;
 
 interface ThreeDViewerProps {
   model: CarModel;
@@ -29,10 +27,12 @@ function Loader() {
 }
 
 const ModelRender = ({ modelUrl, mtlUrl, textureMap }: { modelUrl: string, mtlUrl: string, textureMap: THREE.Texture }) => {
-  // NOTE: MTLLoader hook removed to respect ENABLE_MTL_LOADING = false. 
-  // Hooks cannot be conditional. To re-enable, you must uncomment MTLLoader import and usage.
+  const materials = useLoader(MTLLoader, mtlUrl);
   
-  const obj = useLoader(OBJLoader, modelUrl);
+  const obj = useLoader(OBJLoader, modelUrl, (loader) => {
+    materials.preload();
+    loader.setMaterials(materials);
+  });
 
   const scene = useMemo(() => {
     const clone = obj.clone();
@@ -49,18 +49,22 @@ const ModelRender = ({ modelUrl, mtlUrl, textureMap }: { modelUrl: string, mtlUr
           metalness: 0.1,
           envMapIntensity: 1.0,
           transparent: true,
-          side: THREE.DoubleSide
+          side: THREE.DoubleSide,
+          name: 'CarPaint'
         });
 
+        const processMaterial = (mat: THREE.Material) => {
+             // Only replace the material if it is explicitly named 'CarPaint' or 'CarPaint.001'
+             if (mat.name === 'CarPaint' || mat.name === 'CarPaint.001') {
+                 return wrapMaterial;
+             }
+             return mat;
+        };
+
         if (Array.isArray(child.material)) {
-            // If the mesh originally had multiple materials (from MTL), we override them.
-            // Since MTL loading is disabled, this path is less likely to be complex, 
-            // but OBJLoader might still assign default materials.
-            const newMaterials = child.material.map(() => wrapMaterial);
-            child.material = newMaterials;
-        } else {
-            // Apply wrap to the whole mesh
-            child.material = wrapMaterial;
+            child.material = child.material.map(processMaterial);
+        } else if (child.material) {
+            child.material = processMaterial(child.material);
         }
       }
     });
