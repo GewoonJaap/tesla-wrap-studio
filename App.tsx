@@ -15,12 +15,14 @@ import Footer from './components/Footer';
 import FaqPage from './components/FaqPage';
 import GuidePage from './components/GuidePage';
 import AboutPage from './components/AboutPage';
+import TermsPage from './components/TermsPage';
+import PrivacyPage from './components/PrivacyPage';
 import { CAR_MODELS } from './constants';
 import { CarModel, DrawingState, ToolType, EditorHandle, GalleryItem } from './types';
 import { supabase, fetchWraps, uploadWrapToSupabase, getUserFavorites, toggleFavoriteInDb, deleteWrap } from './services/supabase';
 import { processAndDownloadImage } from './services/imageUtils';
 
-type ViewState = 'home' | 'editor' | 'gallery' | 'faq' | 'about' | 'guide';
+type ViewState = 'home' | 'editor' | 'gallery' | 'faq' | 'about' | 'guide' | 'terms' | 'privacy';
 
 const App: React.FC = () => {
   // --- Routing Logic ---
@@ -32,6 +34,8 @@ const App: React.FC = () => {
          if (path === '/faq') return 'faq';
          if (path === '/guide') return 'guide';
          if (path === '/about') return 'about';
+         if (path === '/terms') return 'terms';
+         if (path === '/privacy') return 'privacy';
          return 'home';
      }
      return 'home';
@@ -57,6 +61,8 @@ const App: React.FC = () => {
       if (view === 'faq') path = '/faq';
       if (view === 'guide') path = '/guide';
       if (view === 'about') path = '/about';
+      if (view === 'terms') path = '/terms';
+      if (view === 'privacy') path = '/privacy';
       
       if (window.location.pathname !== path) {
           window.history.pushState(null, '', path);
@@ -72,6 +78,8 @@ const App: React.FC = () => {
           else if (path === '/faq') setCurrentView('faq');
           else if (path === '/guide') setCurrentView('guide');
           else if (path === '/about') setCurrentView('about');
+          else if (path === '/terms') setCurrentView('terms');
+          else if (path === '/privacy') setCurrentView('privacy');
           else setCurrentView('home');
       };
 
@@ -99,6 +107,12 @@ const App: React.FC = () => {
       } else if (currentView === 'about') {
           title = 'About Tesla Wrap Studio | The Best Free Wrap Creator';
           desc = 'About Tesla Wrap Studio. We provide the best free tools for Tesla owners to design, visualize, and share custom vehicle wraps.';
+      } else if (currentView === 'terms') {
+          title = 'Terms of Service | Tesla Wrap Studio';
+          desc = 'Terms of Service for Tesla Wrap Studio and Gallery.';
+      } else if (currentView === 'privacy') {
+          title = 'Privacy Policy | Tesla Wrap Studio';
+          desc = 'Privacy Policy for Tesla Wrap Studio and Gallery.';
       }
 
       document.title = title;
@@ -623,6 +637,20 @@ const App: React.FC = () => {
               return (
                   <div ref={scrollContainerRef} className="h-full overflow-y-auto">
                       <AboutPage />
+                      <Footer onNavigate={navigate} />
+                  </div>
+              );
+          case 'terms':
+              return (
+                  <div ref={scrollContainerRef} className="h-full overflow-y-auto">
+                      <TermsPage />
+                      <Footer onNavigate={navigate} />
+                  </div>
+              );
+          case 'privacy':
+              return (
+                  <div ref={scrollContainerRef} className="h-full overflow-y-auto">
+                      <PrivacyPage />
                       <Footer onNavigate={navigate} />
                   </div>
               );

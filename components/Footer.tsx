@@ -39,7 +39,8 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               <li><button onClick={() => onNavigate('guide')} className="hover:text-white transition-colors text-base">Installation Guide</button></li>
               <li><button onClick={() => onNavigate('faq')} className="hover:text-white transition-colors text-base">FAQ</button></li>
               <li><button onClick={() => onNavigate('about')} className="hover:text-white transition-colors text-base">About Us</button></li>
-              <li><a href="https://github.com/GewoonJaap/custom-tesla-wraps" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors text-base">GitHub Repo</a></li>
+              <li><button onClick={() => onNavigate('terms')} className="hover:text-white transition-colors text-base">Terms of Service</button></li>
+              <li><button onClick={() => onNavigate('privacy')} className="hover:text-white transition-colors text-base">Privacy Policy</button></li>
             </ul>
           </div>
         </div>
