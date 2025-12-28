@@ -41,7 +41,8 @@ import {
   Sun,
   History,
   Save,
-  Bookmark
+  Bookmark,
+  Dices
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -60,6 +61,20 @@ interface ToolbarProps {
 const GEN_MODELS = [
   { id: 'gemini-2.5-flash-image', name: 'Standard (Flash)', icon: Zap, description: 'Fast, efficient generation' },
   { id: 'gemini-3-pro-image-preview', name: 'Pro (Gemini 3)', icon: Cpu, description: 'High fidelity details' }
+];
+
+const CREATIVE_PROMPTS = [
+  "Cyberpunk neon city pattern, glowing blue and pink lines, dark metallic background",
+  "Rusty Mad Max apocalyptic metal texture, weathered and scratched",
+  "Matte black with gold kintsugi cracks pattern",
+  "Holographic iridescent oil slick texture",
+  "Carbon fiber weave with red racing stripes",
+  "Cherry blossom sakura pattern on white pearl background",
+  "Digital camouflage in arctic snow colors",
+  "Retro 80s synthwave grid landscape, purple and orange",
+  "Brushed titanium texture with industrial rivets",
+  "Liquid gold dripping over matte black",
+  "Geometric low poly mountain landscape, pastel colors"
 ];
 
 const Toolbar: React.FC<ToolbarProps> = ({ 
@@ -226,6 +241,11 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
   const removeImage = (index: number) => {
     setUploadedImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleRandomPrompt = () => {
+    const random = CREATIVE_PROMPTS[Math.floor(Math.random() * CREATIVE_PROMPTS.length)];
+    setPrompt(random);
   };
 
   // Helper to fetch the Mask Image
@@ -497,14 +517,23 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 </button>
              )}
           </div>
-
-          <textarea 
-            className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-3 text-sm text-white resize-none outline-none focus:ring-2 focus:ring-purple-500/50" 
-            rows={3} 
-            placeholder={placeholderText}
-            value={prompt} 
-            onChange={(e) => setPrompt(e.target.value)} 
-          />
+          
+          <div className="relative">
+              <textarea 
+                className="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-3 text-sm text-white resize-none outline-none focus:ring-2 focus:ring-purple-500/50 pr-10" 
+                rows={3} 
+                placeholder={placeholderText}
+                value={prompt} 
+                onChange={(e) => setPrompt(e.target.value)} 
+              />
+              <button 
+                onClick={handleRandomPrompt}
+                className="absolute top-2 right-2 p-1.5 text-zinc-500 hover:text-purple-400 bg-zinc-900 rounded-md transition-colors"
+                title="Inspire me (Random prompt)"
+              >
+                <Dices className="w-4 h-4" />
+              </button>
+          </div>
           
           <div className="mt-3 flex items-center justify-between gap-3">
              <div className="flex bg-zinc-950 border border-zinc-800 rounded-lg p-0.5 shrink-0">

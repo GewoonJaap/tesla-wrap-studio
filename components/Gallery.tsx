@@ -40,6 +40,7 @@ const Gallery: React.FC<GalleryProps> = ({
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
+  const [downloadedIds, setDownloadedIds] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<'newest' | 'popular' | 'downloads'>('newest');
   
   // Loading state simulation for UX polish when switching categories
@@ -133,6 +134,22 @@ const Gallery: React.FC<GalleryProps> = ({
           const filename = `${item.title}.png`;
           await processAndDownloadImage(base64, filename, limit, maxDim);
 
+          // Success State
+          setDownloadedIds(prev => {
+            const next = new Set(prev);
+            next.add(item.id);
+            return next;
+          });
+
+          // Reset success state after 3 seconds
+          setTimeout(() => {
+            setDownloadedIds(prev => {
+              const next = new Set(prev);
+              next.delete(item.id);
+              return next;
+            });
+          }, 3000);
+
       } catch (e) {
           console.error("Download failed:", e);
           alert("Failed to process download. Please try again.");
@@ -155,6 +172,7 @@ const Gallery: React.FC<GalleryProps> = ({
           isOwner={currentUserId === item.userId}
           isLiked={likedItemIds.has(item.id)}
           isDownloading={downloadingIds.has(item.id)}
+          isDownloaded={downloadedIds.has(item.id)}
           onRemix={onRemix}
           onPreview3D={onPreview3D}
           onToggleLike={onToggleLike}

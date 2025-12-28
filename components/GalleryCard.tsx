@@ -1,13 +1,14 @@
 
 import React from 'react';
 import { GalleryItem } from '../types';
-import { Heart, Download, Edit3, Box, Trash2, Loader2, Sparkles } from 'lucide-react';
+import { Heart, Download, Edit3, Box, Trash2, Loader2, Sparkles, Check } from 'lucide-react';
 
 interface GalleryCardProps {
   item: GalleryItem;
   isOwner: boolean;
   isLiked: boolean;
   isDownloading: boolean;
+  isDownloaded?: boolean;
   onRemix: (item: GalleryItem) => void;
   onPreview3D: (item: GalleryItem) => void;
   onToggleLike: (item: GalleryItem) => void;
@@ -21,6 +22,7 @@ const GalleryCard: React.FC<GalleryCardProps> = ({
   isOwner, 
   isLiked, 
   isDownloading,
+  isDownloaded = false,
   onRemix, 
   onPreview3D, 
   onToggleLike, 
@@ -131,12 +133,24 @@ const GalleryCard: React.FC<GalleryCardProps> = ({
                     </span>
                 </div>
                 <button 
-                    onClick={(e) => onDownload(e, item)}
-                    className="text-zinc-400 hover:text-white flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed group/dl"
-                    disabled={isDownloading}
+                    onClick={(e) => !isDownloaded && onDownload(e, item)}
+                    className={`flex items-center gap-1.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group/dl ${
+                        isDownloaded 
+                        ? 'text-green-400 cursor-default' 
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                    disabled={isDownloading || isDownloaded}
                 >
-                    {isDownloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5 group-hover/dl:translate-y-0.5 transition-transform" />}
-                    <span className="hidden sm:inline">{isDownloading ? 'Saving...' : 'Save'}</span>
+                    {isDownloading ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : isDownloaded ? (
+                        <Check className="w-3.5 h-3.5 animate-in zoom-in duration-300" />
+                    ) : (
+                        <Download className="w-3.5 h-3.5 group-hover/dl:translate-y-0.5 transition-transform" />
+                    )}
+                    <span className="hidden sm:inline">
+                        {isDownloading ? 'Saving...' : isDownloaded ? 'Saved' : 'Save'}
+                    </span>
                 </button>
             </div>
         </div>

@@ -5,13 +5,13 @@ import { CAR_MODELS } from '../constants';
 import { 
   Car, ChevronDown, Download, HelpCircle, X, Box, Palette, Layers, 
   Upload, Grid, Share2, LogIn, Menu, LogOut, FileImage, 
-  AlertTriangle, CheckCircle2, PlayCircle, Loader2, HardDrive, User, Info
+  AlertTriangle, CheckCircle2, PlayCircle, Loader2, HardDrive, User, Info, Home, BookOpen
 } from 'lucide-react';
 import { Session } from '@supabase/supabase-js';
 
 interface HeaderProps {
-  currentView: 'editor' | 'gallery' | 'faq' | 'about';
-  onChangeView: (view: 'editor' | 'gallery' | 'faq' | 'about') => void;
+  currentView: 'home' | 'editor' | 'gallery' | 'faq' | 'about' | 'guide';
+  onChangeView: (view: 'home' | 'editor' | 'gallery' | 'faq' | 'about' | 'guide') => void;
   selectedModel: CarModel;
   onSelectModel: (model: CarModel) => void;
   onDownload: () => void;
@@ -72,7 +72,7 @@ const Header: React.FC<HeaderProps> = ({
   };
 
   // Helper to handle view change and close menu
-  const handleChangeView = (view: 'editor' | 'gallery' | 'faq' | 'about') => {
+  const handleChangeView = (view: 'home' | 'editor' | 'gallery' | 'faq' | 'about' | 'guide') => {
       onChangeView(view);
       setIsMobileMenuOpen(false);
   };
@@ -91,17 +91,17 @@ const Header: React.FC<HeaderProps> = ({
                 {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
 
-            {/* Logo (Hidden on small mobile if in Editor to save space for dropdown) */}
+            {/* Logo */}
             <div className={`items-center gap-3 ${currentView === 'editor' ? 'hidden sm:flex' : 'flex'}`}>
                 <div 
                     className="bg-gradient-to-tr from-red-600 to-red-500 p-1.5 sm:p-2 rounded-lg shadow-lg shadow-red-900/20 cursor-pointer" 
-                    onClick={() => handleChangeView('editor')}
+                    onClick={() => handleChangeView('home')}
                 >
                     <Car className="text-white w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
                 <h1 
                     className="text-lg sm:text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400 hidden xl:block tracking-tight cursor-pointer" 
-                    onClick={() => handleChangeView('editor')}
+                    onClick={() => handleChangeView('home')}
                 >
                     Tesla Wrap Studio
                 </h1>
@@ -109,6 +109,12 @@ const Header: React.FC<HeaderProps> = ({
 
             {/* Desktop Nav Tabs */}
             <div className="hidden lg:flex bg-zinc-950 p-1 rounded-lg border border-zinc-800 ml-4">
+              <button 
+                onClick={() => handleChangeView('home')}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${currentView === 'home' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
+              >
+                 <Home className="w-4 h-4" /> Home
+              </button>
               <button 
                 onClick={() => handleChangeView('editor')}
                 className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${currentView === 'editor' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
@@ -120,6 +126,12 @@ const Header: React.FC<HeaderProps> = ({
                 className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${currentView === 'gallery' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
               >
                  <Grid className="w-4 h-4" /> Gallery
+              </button>
+              <button 
+                onClick={() => handleChangeView('guide')}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${currentView === 'guide' ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
+              >
+                 <BookOpen className="w-4 h-4" /> Guide
               </button>
             </div>
             
@@ -213,9 +225,9 @@ const Header: React.FC<HeaderProps> = ({
                 <div className="h-6 w-px bg-zinc-800"></div>
                 
                 <button
-                    onClick={() => setShowHelp(true)}
+                    onClick={() => handleChangeView('faq')}
                     className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition-colors"
-                    title="Help"
+                    title="FAQ"
                 >
                     <HelpCircle className="w-5 h-5" />
                 </button>
@@ -236,10 +248,19 @@ const Header: React.FC<HeaderProps> = ({
                         </button>
                     </>
                 )}
+
+                {currentView !== 'editor' && (
+                     <button
+                        onClick={() => handleChangeView('editor')}
+                        className="flex items-center gap-2 bg-white text-black px-4 py-2 rounded-full hover:bg-zinc-200 transition-all font-bold text-sm shadow-lg shadow-white/10 active:scale-95"
+                    >
+                        Start Designing
+                    </button>
+                )}
             </div>
 
-            {/* Primary Action Button (Always Visible) */}
-            {currentView === 'editor' ? (
+            {/* Primary Action Button (Editor Only) - Always Visible on Mobile */}
+            {currentView === 'editor' && (
                 <button
                     onClick={onDownload}
                     disabled={isDownloading}
@@ -247,14 +268,6 @@ const Header: React.FC<HeaderProps> = ({
                 >
                     {isDownloading ? <Loader2 className="w-4 h-4 animate-spin"/> : <Download className="w-4 h-4" />}
                     <span>{isDownloading ? 'Processing' : 'Export'}</span>
-                </button>
-            ) : (
-                <button
-                    onClick={onUpload}
-                    className="flex items-center gap-2 bg-white text-black px-3 py-1.5 sm:px-4 sm:py-2 rounded-full hover:bg-zinc-200 transition-all font-medium text-xs sm:text-sm shadow-lg shadow-white/5 active:scale-95 shrink-0"
-                >
-                    <Upload className="w-4 h-4" />
-                    <span>Upload</span>
                 </button>
             )}
 
@@ -317,6 +330,13 @@ const Header: React.FC<HeaderProps> = ({
                 {/* 2. Navigation */}
                 <div className="p-2 grid grid-cols-2 gap-2 border-b border-zinc-800">
                      <button 
+                        onClick={() => handleChangeView('home')}
+                        className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-all ${currentView === 'home' ? 'bg-zinc-800 text-white ring-1 ring-zinc-700' : 'text-zinc-500 hover:bg-zinc-800/50'}`}
+                     >
+                        <Home className="w-6 h-6" />
+                        <span className="text-xs font-medium">Home</span>
+                     </button>
+                     <button 
                         onClick={() => handleChangeView('editor')}
                         className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-all ${currentView === 'editor' ? 'bg-zinc-800 text-white ring-1 ring-zinc-700' : 'text-zinc-500 hover:bg-zinc-800/50'}`}
                      >
@@ -331,18 +351,11 @@ const Header: React.FC<HeaderProps> = ({
                         <span className="text-xs font-medium">Gallery</span>
                      </button>
                      <button 
-                        onClick={() => handleChangeView('faq')}
-                        className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-all ${currentView === 'faq' ? 'bg-zinc-800 text-white ring-1 ring-zinc-700' : 'text-zinc-500 hover:bg-zinc-800/50'}`}
+                        onClick={() => handleChangeView('guide')}
+                        className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-all ${currentView === 'guide' ? 'bg-zinc-800 text-white ring-1 ring-zinc-700' : 'text-zinc-500 hover:bg-zinc-800/50'}`}
                      >
-                        <HelpCircle className="w-6 h-6" />
-                        <span className="text-xs font-medium">FAQ & Guide</span>
-                     </button>
-                     <button 
-                        onClick={() => handleChangeView('about')}
-                        className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-all ${currentView === 'about' ? 'bg-zinc-800 text-white ring-1 ring-zinc-700' : 'text-zinc-500 hover:bg-zinc-800/50'}`}
-                     >
-                        <Info className="w-6 h-6" />
-                        <span className="text-xs font-medium">About</span>
+                        <BookOpen className="w-6 h-6" />
+                        <span className="text-xs font-medium">Installation Guide</span>
                      </button>
                 </div>
 
@@ -372,11 +385,11 @@ const Header: React.FC<HeaderProps> = ({
                 {/* 4. General Links */}
                 <div className="p-4">
                      <button 
-                        onClick={() => { setShowHelp(true); setIsMobileMenuOpen(false); }}
+                        onClick={() => handleChangeView('faq')}
                         className="w-full flex items-center justify-between p-3 bg-zinc-900 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
                      >
                         <span className="flex items-center gap-3">
-                            <HelpCircle className="w-5 h-5" /> Installation Guide
+                            <HelpCircle className="w-5 h-5" /> FAQ & Help
                         </span>
                         <ChevronDown className="w-4 h-4 -rotate-90" />
                      </button>
@@ -390,176 +403,28 @@ const Header: React.FC<HeaderProps> = ({
       {showHelp && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
-            
+            {/* Reusing existing help modal logic but pointing to Guide page */}
             {/* Header */}
             <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <HelpCircle className="w-5 h-5 text-red-500" />
-                Custom Wraps Guide
+                Quick Help
               </h2>
               <button onClick={() => setShowHelp(false)} className="p-2 hover:bg-zinc-800 rounded-full transition-colors text-zinc-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
-
-            {/* Tabs */}
-            <div className="flex border-b border-zinc-800 bg-zinc-900">
-                <button 
-                    onClick={() => setHelpTab('guide')}
-                    className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${helpTab === 'guide' ? 'border-red-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
-                >
-                    Quick Guide
-                </button>
-                <button 
-                    onClick={() => setHelpTab('usb')}
-                    className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${helpTab === 'usb' ? 'border-red-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
-                >
-                    USB & Specs
-                </button>
-                <button 
-                    onClick={() => setHelpTab('troubleshoot')}
-                    className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${helpTab === 'troubleshoot' ? 'border-red-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
-                >
-                    Help
-                </button>
-            </div>
             
-            {/* Content */}
-            <div className="p-6 overflow-y-auto space-y-6 text-zinc-300 text-sm leading-relaxed scrollbar-thin bg-zinc-900/50">
-              
-              {helpTab === 'guide' && (
-                  <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                      <div className="bg-zinc-800/50 p-4 rounded-xl border border-zinc-700/50">
-                          <h3 className="text-white font-bold mb-3 flex items-center gap-2">
-                              <PlayCircle className="w-4 h-4 text-purple-400" /> How to Use Custom Wraps
-                          </h3>
-                          <ol className="space-y-3 list-decimal list-inside text-zinc-400">
-                              <li><strong className="text-zinc-200">Select Model:</strong> Choose your vehicle from the top menu to load the correct template.</li>
-                              <li><strong className="text-zinc-200">Design:</strong> Use the drawing tools or AI Texture Gen to create your wrap. Fill all areas.</li>
-                              <li><strong className="text-zinc-200">Export:</strong> Click the "Export" button to save your design as a PNG.</li>
-                              <li><strong className="text-zinc-200">Prepare USB:</strong> Create a folder named <code>Wraps</code> on your USB drive.</li>
-                              <li><strong className="text-zinc-200">Apply:</strong> Plug the USB into your Tesla. Go to <strong>Toybox &rarr; Paint Shop &rarr; Wraps</strong>.</li>
-                          </ol>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                          <div className="p-3 bg-zinc-950 rounded-lg border border-zinc-800">
-                             <h4 className="font-medium text-white mb-1">Wraps</h4>
-                             <p className="text-xs text-zinc-500">For changing the entire vehicle body color/texture.</p>
-                          </div>
-                          <div className="p-3 bg-zinc-950 rounded-lg border border-zinc-800">
-                             <h4 className="font-medium text-white mb-1">License Plates</h4>
-                             <p className="text-xs text-zinc-500">Custom background for your license plate (Select "License Plate" in model menu).</p>
-                          </div>
-                      </div>
-                  </div>
-              )}
-
-              {helpTab === 'usb' && (
-                  <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                      {/* Vehicle Wraps Specs */}
-                      <div>
-                          <h3 className="text-white font-bold mb-3 flex items-center gap-2">
-                              <Car className="w-4 h-4 text-blue-400" /> Vehicle Wraps Specs
-                          </h3>
-                          <ul className="space-y-2 text-xs sm:text-sm">
-                              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0"/> Folder: <code className="bg-zinc-800 px-1 rounded">Wraps</code> (Case-sensitive)</li>
-                              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0"/> Resolution: <strong>512x512</strong> to <strong>1024x1024</strong></li>
-                              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0"/> File Size: Max <strong>1 MB</strong></li>
-                              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0"/> Format: .png (Max 10 images)</li>
-                          </ul>
-                      </div>
-
-                      {/* License Plate Specs */}
-                      <div className="pt-4 border-t border-zinc-800">
-                          <h3 className="text-white font-bold mb-3 flex items-center gap-2">
-                              <FileImage className="w-4 h-4 text-purple-400" /> License Plate Specs
-                          </h3>
-                          <ul className="space-y-2 text-xs sm:text-sm">
-                              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0"/> Folder: <code className="bg-zinc-800 px-1 rounded">LicensePlate</code> (Case-sensitive)</li>
-                              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0"/> Resolution: <strong>420x100</strong> (Rec) to <strong>420x200</strong> (Max)</li>
-                              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0"/> File Size: Max <strong>0.5 MB</strong></li>
-                              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0"/> Filename: Max 32 chars (Letters & Numbers only)</li>
-                              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 shrink-0"/> Limit: Max 10 images</li>
-                          </ul>
-                      </div>
-
-                      <div className="pt-4 border-t border-zinc-800">
-                          <h3 className="text-white font-bold mb-3 flex items-center gap-2">
-                              <HardDrive className="w-4 h-4 text-orange-400" /> USB Drive Setup
-                          </h3>
-                          <div className="bg-zinc-950 p-4 rounded-lg border border-zinc-800 space-y-3 font-mono text-xs">
-                              <p>1. Format Drive: exFAT, FAT32, MS-DOS FAT, ext3, or ext4.</p>
-                              <p>2. Create Folder Structure:</p>
-                              <div className="pl-4 border-l-2 border-zinc-700">
-                                  <p>USB_ROOT/</p>
-                                  <p className="pl-4">├── Wraps/</p>
-                                  <p className="pl-4">└── LicensePlate/</p>
-                              </div>
-                              <p className="text-red-400 flex items-center gap-2 mt-2"><AlertTriangle className="w-3 h-3"/> Ensure no map/firmware updates are on the drive.</p>
-                          </div>
-                      </div>
-                  </div>
-              )}
-
-              {helpTab === 'troubleshoot' && (
-                  <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                       <div className="bg-zinc-800/30 p-4 rounded-lg">
-                          <h3 className="text-white font-bold mb-2">Applying in Vehicle</h3>
-                          <div className="space-y-4">
-                              <div>
-                                  <strong className="text-xs text-blue-400 uppercase tracking-wider block mb-1">For Wraps</strong>
-                                  <div className="flex gap-2 items-center text-sm font-medium text-white flex-wrap">
-                                      <span className="bg-zinc-700 px-2 py-1 rounded">Toybox</span>
-                                      <span>&rarr;</span>
-                                      <span className="bg-zinc-700 px-2 py-1 rounded">Paint Shop</span>
-                                      <span>&rarr;</span>
-                                      <span className="bg-zinc-700 px-2 py-1 rounded">Wraps</span>
-                                  </div>
-                              </div>
-                              <div>
-                                  <strong className="text-xs text-purple-400 uppercase tracking-wider block mb-1">For License Plates</strong>
-                                  <div className="flex gap-2 items-center text-sm font-medium text-white flex-wrap">
-                                      <span className="bg-zinc-700 px-2 py-1 rounded">Settings</span>
-                                      <span>&rarr;</span>
-                                      <span className="bg-zinc-700 px-2 py-1 rounded">Background</span>
-                                      <span>&rarr;</span>
-                                      <span className="bg-zinc-700 px-2 py-1 rounded">Image</span>
-                                  </div>
-                              </div>
-                          </div>
-                       </div>
-
-                       <div>
-                          <h3 className="text-white font-bold mb-3 flex items-center gap-2">
-                              <AlertTriangle className="w-4 h-4 text-yellow-500" /> Troubleshooting
-                          </h3>
-                          <ul className="space-y-3 text-zinc-400">
-                              <li className="border-l-2 border-zinc-700 pl-3">
-                                  <strong className="text-white block">Image not showing?</strong>
-                                  Check that your file is a <strong>.png</strong>.
-                                  <br/>Wraps must be &lt; 1MB. Plates must be &lt; 0.5MB.
-                                  <br/>Ensure filenames have no special characters.
-                              </li>
-                              <li className="border-l-2 border-zinc-700 pl-3">
-                                  <strong className="text-white block">Folder name correct?</strong>
-                                  It must be exactly <code>Wraps</code> or <code>LicensePlate</code> (case-sensitive).
-                              </li>
-                              <li className="border-l-2 border-zinc-700 pl-3">
-                                  <strong className="text-white block">NTFS Format?</strong>
-                                  Tesla does not currently support NTFS formatted drives for this feature. Please reformat to exFAT or FAT32.
-                              </li>
-                          </ul>
-                       </div>
-                  </div>
-              )}
-
-            </div>
-
-            {/* Footer */}
-            <div className="p-4 border-t border-zinc-800 flex justify-end bg-zinc-950">
-              <button onClick={() => setShowHelp(false)} className="bg-white hover:bg-zinc-200 text-black px-6 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-white/10">
-                Got it
-              </button>
+            <div className="p-8 text-center space-y-4">
+                 <BookOpen className="w-12 h-12 text-zinc-600 mx-auto" />
+                 <h3 className="text-xl font-bold text-white">Need Installation Help?</h3>
+                 <p className="text-zinc-400">We have a detailed step-by-step guide on how to format your USB drive and install custom wraps.</p>
+                 <button 
+                    onClick={() => { setShowHelp(false); handleChangeView('guide'); }}
+                    className="bg-white text-black font-bold px-6 py-3 rounded-full hover:bg-zinc-200 transition-colors"
+                 >
+                    View Installation Guide
+                 </button>
             </div>
           </div>
         </div>

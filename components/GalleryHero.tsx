@@ -18,10 +18,11 @@ const GalleryHero: React.FC<GalleryHeroProps> = ({ onUpload }) => {
           <Star className="w-3 h-3 fill-current" /> Community Showcase
         </div>
         <h1 className="text-4xl sm:text-6xl font-black text-white mb-4 tracking-tight animate-in fade-in slide-in-from-bottom-6 duration-700 leading-tight">
-          Discover. <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-red-500">Remix.</span> Drive.
+          Download Free <br/>
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-red-500">Custom Tesla Wraps</span>
         </h1>
         <p className="text-zinc-300 max-w-xl text-lg mb-8 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
-          Explore thousands of custom Tesla wraps created by the community. Preview in 3D, remix designs, or download for your vehicle.
+          Explore thousands of custom Tesla skins created by the community. Download free .png files for your Cybertruck, Model 3, or Model Y Paint Shop.
         </p>
         <button 
            onClick={onUpload}

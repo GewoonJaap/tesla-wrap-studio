@@ -7,54 +7,72 @@ import Editor from './components/Editor';
 import ThreeDViewer from './components/ThreeDViewer';
 import ApiKeyModal from './components/ApiKeyModal';
 import Gallery from './components/Gallery';
+import HomePage from './components/HomePage';
 import UploadModal from './components/UploadModal';
 import AuthModal from './components/AuthModal';
 import ConfirmDialog from './components/ConfirmDialog';
 import Footer from './components/Footer';
 import FaqPage from './components/FaqPage';
+import GuidePage from './components/GuidePage';
 import AboutPage from './components/AboutPage';
 import { CAR_MODELS } from './constants';
 import { CarModel, DrawingState, ToolType, EditorHandle, GalleryItem } from './types';
 import { supabase, fetchWraps, uploadWrapToSupabase, getUserFavorites, toggleFavoriteInDb, deleteWrap } from './services/supabase';
 import { processAndDownloadImage } from './services/imageUtils';
 
-type ViewState = 'editor' | 'gallery' | 'faq' | 'about';
+type ViewState = 'home' | 'editor' | 'gallery' | 'faq' | 'about' | 'guide';
 
 const App: React.FC = () => {
   // --- Routing Logic ---
   const [currentView, setCurrentView] = useState<ViewState>(() => {
      if (typeof window !== 'undefined') {
          const path = window.location.pathname;
+         if (path === '/editor') return 'editor';
          if (path === '/gallery') return 'gallery';
          if (path === '/faq') return 'faq';
+         if (path === '/guide') return 'guide';
          if (path === '/about') return 'about';
-         return 'editor';
+         return 'home';
      }
-     return 'editor';
+     return 'home';
   });
+
+  // Scroll Container Ref
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to top on view change
+  useEffect(() => {
+      if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTo(0, 0);
+      }
+      window.scrollTo(0, 0);
+  }, [currentView]);
 
   // Handle URL updates and History
   const navigate = useCallback((view: ViewState) => {
       setCurrentView(view);
       let path = '/';
+      if (view === 'editor') path = '/editor';
       if (view === 'gallery') path = '/gallery';
       if (view === 'faq') path = '/faq';
+      if (view === 'guide') path = '/guide';
       if (view === 'about') path = '/about';
       
       if (window.location.pathname !== path) {
           window.history.pushState(null, '', path);
       }
-      window.scrollTo(0,0);
   }, []);
 
   // Listen for Back/Forward navigation
   useEffect(() => {
       const handlePopState = () => {
           const path = window.location.pathname;
-          if (path === '/gallery') setCurrentView('gallery');
+          if (path === '/editor') setCurrentView('editor');
+          else if (path === '/gallery') setCurrentView('gallery');
           else if (path === '/faq') setCurrentView('faq');
+          else if (path === '/guide') setCurrentView('guide');
           else if (path === '/about') setCurrentView('about');
-          else setCurrentView('editor');
+          else setCurrentView('home');
       };
 
       window.addEventListener('popstate', handlePopState);
@@ -66,12 +84,18 @@ const App: React.FC = () => {
       let title = 'Tesla Wrap Studio | Free Wrap Maker & Designer';
       let desc = 'The #1 Free Tesla Wrap Maker. Create, design, and download custom wraps for Cybertruck, Model 3, and Model Y. Compatible with the Tesla Holiday Update 2025.';
 
-      if (currentView === 'gallery') {
+      if (currentView === 'editor') {
+          title = 'Wrap Editor | Design Custom Tesla Wraps';
+          desc = 'Powerful browser-based editor to design custom wraps for your Tesla Cybertruck, Model 3, and Model Y.';
+      } else if (currentView === 'gallery') {
           title = 'Tesla Wrap Gallery | Free Custom Wraps Download';
           desc = 'Explore thousands of free custom Tesla wraps. Download unique designs for Cybertruck, Model 3, and Model Y created by the community.';
       } else if (currentView === 'faq') {
-          title = 'Tesla Wrap Guide | How to Install Custom Wraps (2025 Update)';
-          desc = 'Learn how to create and install custom wraps on your Tesla using a USB drive. Updated for the December 2025 Paint Shop features.';
+          title = 'FAQ | Tesla Wrap Studio';
+          desc = 'Common questions about creating and downloading custom Tesla wraps.';
+      } else if (currentView === 'guide') {
+          title = 'How to Install Custom Tesla Wraps | Step-by-Step Guide';
+          desc = 'Learn how to install custom wraps and license plates on your Tesla Model 3, Model Y, or Cybertruck using a USB drive. Updated for Holiday Update 2025.';
       } else if (currentView === 'about') {
           title = 'About Tesla Wrap Studio | The Best Free Wrap Creator';
           desc = 'About Tesla Wrap Studio. We provide the best free tools for Tesla owners to design, visualize, and share custom vehicle wraps.';
@@ -131,6 +155,8 @@ const App: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
+  const [downloadedIds, setDownloadedIds] = useState<Set<string>>(new Set());
 
   // Dialog State
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -279,6 +305,61 @@ const App: React.FC = () => {
     }
   }, [selectedModel]);
 
+  const handleGalleryDownload = async (e: React.MouseEvent, item: GalleryItem) => {
+      e.stopPropagation();
+      if (downloadingIds.has(item.id)) return;
+
+      setDownloadingIds(prev => {
+          const next = new Set(prev);
+          next.add(item.id);
+          return next;
+      });
+
+      try {
+          const response = await fetch(item.imageUrl, { mode: 'cors' });
+          const blob = await response.blob();
+          const base64 = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+          });
+
+          const isPlate = item.carModelId === 'license-plate';
+          const limit = isPlate ? 500 * 1024 : 1000 * 1024;
+          const maxDim = isPlate ? 420 : 1024;
+          
+          const filename = `${item.title}.png`;
+          await processAndDownloadImage(base64, filename, limit, maxDim);
+
+          // Success State
+          setDownloadedIds(prev => {
+            const next = new Set(prev);
+            next.add(item.id);
+            return next;
+          });
+
+          // Reset success state after 3 seconds
+          setTimeout(() => {
+            setDownloadedIds(prev => {
+              const next = new Set(prev);
+              next.delete(item.id);
+              return next;
+            });
+          }, 3000);
+
+      } catch (e) {
+          console.error("Download failed:", e);
+          alert("Failed to process download. Please try again.");
+      } finally {
+          setDownloadingIds(prev => {
+              const next = new Set(prev);
+              next.delete(item.id);
+              return next;
+          });
+      }
+  };
+
   const handleOpen3D = useCallback(() => {
     const dataUrl = editorRef.current?.getCompositeData();
     if (dataUrl) {
@@ -296,6 +377,8 @@ const App: React.FC = () => {
 
   const handleImportWrap = (base64: string) => {
     setTextureToApply(base64);
+    // If not already in editor, go there
+    if (currentView !== 'editor') navigate('editor');
   };
 
   const handleTextureApplied = () => {
@@ -356,6 +439,9 @@ const App: React.FC = () => {
   const handleUploadSubmit = async (data: { title: string; author: string; tags: string[]; carModelId: string; image: string }) => {
     if (!session) return;
     
+    // We do NOT navigate here immediately, allowing the modal to show Success/Share state.
+    // We let the modal call navigate or close after success if needed, but primarily we just update the list.
+    
     try {
         const newItem = await uploadWrapToSupabase(data.image, {
             ...data,
@@ -364,29 +450,9 @@ const App: React.FC = () => {
 
         if (newItem) {
             setGalleryItems(prev => [newItem, ...prev]);
-            navigate('gallery');
-            
-            // Success Dialog
-            setConfirmDialog({
-                isOpen: true,
-                title: 'Design Published!',
-                message: 'Your custom wrap has been successfully published to the gallery.',
-                variant: 'success',
-                confirmLabel: 'Awesome',
-                showCancel: false,
-                onConfirm: () => setConfirmDialog(prev => ({ ...prev, isOpen: false }))
-            });
         }
     } catch (e: any) {
-        setConfirmDialog({
-            isOpen: true,
-            title: 'Upload Failed',
-            message: "We couldn't upload your design. " + e.message,
-            variant: 'danger',
-            confirmLabel: 'Okay',
-            showCancel: false,
-            onConfirm: () => setConfirmDialog(prev => ({ ...prev, isOpen: false }))
-        });
+        throw e; // Let the modal handle the error
     }
   };
 
@@ -473,6 +539,25 @@ const App: React.FC = () => {
 
   const renderContent = () => {
       switch (currentView) {
+          case 'home':
+             return (
+                 <div ref={scrollContainerRef} className="h-full overflow-y-auto">
+                    <HomePage 
+                        onNavigate={navigate}
+                        onSelectModel={setSelectedModel}
+                        featuredWraps={galleryItems}
+                        likedItemIds={likedWraps}
+                        onToggleLike={handleToggleLike}
+                        onPreview3D={handleGalleryPreview3D}
+                        onRemix={handleRemix}
+                        onDownload={handleGalleryDownload}
+                        currentUserId={session?.user.id}
+                        isDownloadingIds={downloadingIds}
+                        downloadedIds={downloadedIds}
+                    />
+                    <Footer onNavigate={navigate} />
+                 </div>
+             );
           case 'editor':
               return (
                 <div className="h-full flex flex-col relative overflow-hidden">
@@ -504,7 +589,7 @@ const App: React.FC = () => {
               );
           case 'gallery':
               return (
-                  <div className="h-full overflow-y-auto">
+                  <div ref={scrollContainerRef} className="h-full overflow-y-auto">
                     <Gallery 
                         items={galleryItems}
                         onRemix={handleRemix}
@@ -520,16 +605,23 @@ const App: React.FC = () => {
                     <Footer onNavigate={navigate} />
                   </div>
               );
+          case 'guide':
+              return (
+                  <div ref={scrollContainerRef} className="h-full overflow-y-auto">
+                      <GuidePage />
+                      <Footer onNavigate={navigate} />
+                  </div>
+              );
           case 'faq':
               return (
-                  <div className="h-full overflow-y-auto">
+                  <div ref={scrollContainerRef} className="h-full overflow-y-auto">
                       <FaqPage />
                       <Footer onNavigate={navigate} />
                   </div>
               );
           case 'about':
               return (
-                  <div className="h-full overflow-y-auto">
+                  <div ref={scrollContainerRef} className="h-full overflow-y-auto">
                       <AboutPage />
                       <Footer onNavigate={navigate} />
                   </div>
@@ -542,8 +634,8 @@ const App: React.FC = () => {
   return (
     <div className="h-full flex flex-col bg-zinc-950 text-white">
       <Header 
-        currentView={currentView as any} // Cast for now, will fix header types next
-        onChangeView={(view) => navigate(view as any)}
+        currentView={currentView}
+        onChangeView={(view) => navigate(view)}
         selectedModel={selectedModel} 
         onSelectModel={setSelectedModel}
         onDownload={handleDownload}
@@ -583,7 +675,12 @@ const App: React.FC = () => {
       {/* Upload Modal */}
       <UploadModal 
         isOpen={isUploadModalOpen}
-        onClose={() => setIsUploadModalOpen(false)}
+        onClose={() => {
+            setIsUploadModalOpen(false);
+            // If we closed the modal while in Gallery view, we don't need to do anything else.
+            // If in editor, maybe user wants to go to gallery? 
+            // For now, let's just close.
+        }}
         initialImage={uploadImageBlob}
         initialModelId={currentView === 'editor' ? selectedModel.id : undefined}
         onSubmit={handleUploadSubmit}

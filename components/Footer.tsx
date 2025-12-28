@@ -36,7 +36,8 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           <div className="space-y-4">
             <h4 className="text-white font-bold text-lg">Support & Info</h4>
             <ul className="space-y-3 text-zinc-400">
-              <li><button onClick={() => onNavigate('faq')} className="hover:text-white transition-colors text-base">FAQ & Guide</button></li>
+              <li><button onClick={() => onNavigate('guide')} className="hover:text-white transition-colors text-base">Installation Guide</button></li>
+              <li><button onClick={() => onNavigate('faq')} className="hover:text-white transition-colors text-base">FAQ</button></li>
               <li><button onClick={() => onNavigate('about')} className="hover:text-white transition-colors text-base">About Us</button></li>
               <li><a href="https://github.com/GewoonJaap/custom-tesla-wraps" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors text-base">GitHub Repo</a></li>
             </ul>

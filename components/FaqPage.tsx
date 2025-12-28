@@ -10,26 +10,34 @@ const FaqPage: React.FC = () => {
     "mainEntity": [
       {
         "@type": "Question",
-        "name": "How do I install a custom wrap on my Tesla?",
+        "name": "How to add custom wraps to Tesla Paint Shop?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "To install a custom wrap, export your design as a PNG. Save it to a USB drive in a folder named 'Wraps'. Plug the USB into your Tesla, go to Toybox > Paint Shop > Wraps, and select your custom file."
+          "text": "To add a custom wrap, download or create a design using our tool. Save the .png file to a folder named 'Wraps' on a USB drive. Plug the drive into your Tesla, go to Toybox > Paint Shop > Wraps, and select your file."
         }
       },
       {
         "@type": "Question",
-        "name": "Is this tool compatible with the December 2025 Holiday Update?",
+        "name": "Where can I download free Tesla wraps?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes! This Tesla wrap maker creates files fully compatible with the 2025 Holiday Update Paint Shop features (Colorizer 2.0). Simply export your design and plug it in."
+          "text": "You can download free custom Tesla wraps from our Community Gallery. We host thousands of designs for Cybertruck, Model 3, and Model Y that are ready to import into your vehicle."
         }
       },
       {
         "@type": "Question",
-        "name": "What format does the USB drive need to be?",
+        "name": "Is this compatible with the Holiday Update 2025?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "The USB drive should be formatted as exFAT, FAT32, MS-DOS FAT, ext3, or ext4. NTFS is currently not supported for the Colorizer feature."
+          "text": "Yes! Our Tesla wrap creator creates files fully compatible with the 2025 Holiday Update Paint Shop features (Colorizer 2.0). All exports are optimized to meet the 1MB file size limit."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What format does the USB drive need to be for Tesla wraps?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The USB drive should be formatted as exFAT or FAT32. Ensure the drive does not contain TeslaCam or Firmware update folders that might interfere with the media player reading the 'Wraps' folder."
         }
       },
       {
@@ -37,15 +45,7 @@ const FaqPage: React.FC = () => {
         "name": "Why is my custom wrap not showing up in the car?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Ensure the folder name is exactly 'Wraps' (case-sensitive). The file must be a .png under 1MB in size. Also, ensure the USB drive does not contain TeslaCam or Firmware update folders that might interfere."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "Can I customize my license plate background?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Yes. Select 'License Plate' in the model selector. Design your plate, export it, and save it to a folder named 'LicensePlate' on your USB drive."
+          "text": "Ensure the folder name is exactly 'Wraps' (case-sensitive) with a capital 'W'. The file must be a .png image under 1MB. If using a Mac, ensure hidden dotfiles are not confusing the system."
         }
       }
     ]
@@ -60,7 +60,7 @@ const FaqPage: React.FC = () => {
       <div className="bg-zinc-900 border-b border-zinc-800 py-16">
         <div className="container mx-auto px-6 max-w-4xl text-center">
             <h1 className="text-4xl font-bold mb-4">Frequently Asked Questions</h1>
-            <p className="text-zinc-400 text-lg">Everything you need to know about designing and installing custom Tesla wraps using our free creator tool.</p>
+            <p className="text-zinc-400 text-lg">Everything you need to know about designing, downloading, and installing custom Tesla wraps.</p>
         </div>
       </div>
 
@@ -77,10 +77,10 @@ const FaqPage: React.FC = () => {
             
             <div className="space-y-6">
                  <div>
-                    <h3 className="font-bold text-lg mb-2 text-zinc-100">Is this compatible with the new update?</h3>
+                    <h3 className="font-bold text-lg mb-2 text-zinc-100">Is this tool compatible with the new update?</h3>
                     <p className="text-zinc-400 leading-relaxed">
                         Absolutely. The custom wraps/skins feature was officially expanded in the <strong>December 2025 Holiday Update</strong>. 
-                        Our <strong>Tesla wrap maker</strong> ensures all exported files are perfectly optimized (1MB limit, correct aspect ratio) for the new Paint Shop system.
+                        Our <strong>Tesla wrap creator</strong> ensures all exported files are perfectly optimized (1MB limit, correct aspect ratio) for the new Paint Shop system.
                     </p>
                 </div>
             </div>
@@ -98,11 +98,11 @@ const FaqPage: React.FC = () => {
             <div className="space-y-6">
                 <div>
                     <h3 className="font-bold text-lg mb-2 text-zinc-100">Is this wrap designer free?</h3>
-                    <p className="text-zinc-400 leading-relaxed">Yes, the Tesla Wrap Studio is a completely <strong>free tesla wrap maker</strong>. You can design, save, and export unlimited wraps without any cost. Some advanced AI generation features require your own Gemini API key.</p>
+                    <p className="text-zinc-400 leading-relaxed">Yes, the Tesla Wrap Studio is a completely <strong>free tesla wrap maker</strong>. You can design, save, and download unlimited wraps without any cost. Some advanced AI generation features require your own Gemini API key.</p>
                 </div>
                 <div>
                     <h3 className="font-bold text-lg mb-2 text-zinc-100">Which models are supported?</h3>
-                    <p className="text-zinc-400 leading-relaxed">We are the leading <strong>wrap creator</strong> for the Cybertruck, Model 3 (Highland, 2024, Base), and Model Y (2025, Performance, Long Range). We also support custom License Plate backgrounds.</p>
+                    <p className="text-zinc-400 leading-relaxed">We provide custom templates for the Cybertruck, Model 3 (Highland, 2024, Base), and Model Y (2025, Performance, Long Range). We also support custom License Plate backgrounds.</p>
                 </div>
             </div>
         </div>
@@ -118,11 +118,11 @@ const FaqPage: React.FC = () => {
             
             <div className="space-y-6">
                 <div>
-                    <h3 className="font-bold text-lg mb-2 text-zinc-100">How to install via USB?</h3>
+                    <h3 className="font-bold text-lg mb-2 text-zinc-100">How to add custom wraps to Tesla Paint Shop?</h3>
                     <ol className="list-decimal list-inside space-y-2 text-zinc-400 marker:text-zinc-500">
                         <li>Format your USB drive to <strong>exFAT</strong> or <strong>FAT32</strong>.</li>
                         <li>Create a folder named <code>Wraps</code> (case-sensitive).</li>
-                        <li>Place your exported .png files into this folder.</li>
+                        <li>Download your design and place the .png file into this folder.</li>
                         <li>Plug the USB into the glovebox port of your Tesla.</li>
                         <li>Navigate to <strong>Toybox &rarr; Paint Shop &rarr; Wraps</strong>.</li>
                     </ol>
